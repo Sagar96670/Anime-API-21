@@ -1,17 +1,18 @@
 const { fetchCatalogFromUrl } = require("../src/sourceAdapter");
 const { syncCatalog } = require("../src/sync");
 
+const DEFAULT_METADATA_FEED_URL = "https://www.desidubanime.me";
+
 async function main() {
-  const url = process.argv[2] || process.env.METADATA_FEED_URL;
+  const url =
+    process.argv[2] ||
+    process.env.METADATA_FEED_URL ||
+    DEFAULT_METADATA_FEED_URL;
 
-  if (!url) {
-    console.error("Usage: node scripts/sync-url.js <metadata-feed-url>");
-    console.error("Or set METADATA_FEED_URL in the environment.");
-    process.exit(1);
-  }
+  console.log("Fetching metadata feed from " + url + "...");
 
-  console.log("Fetching metadata feed...");
   const catalog = await fetchCatalogFromUrl(url);
+
   console.log(
     "Received " +
       catalog.anime.length + " anime, " +
@@ -20,6 +21,7 @@ async function main() {
   );
 
   const result = await syncCatalog(catalog);
+
   console.log("Sync complete:");
   console.log(JSON.stringify(result, null, 2));
 }
