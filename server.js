@@ -62,6 +62,79 @@ app.get("/api/health", async (req, res, next) => {
   }
 });
 
+
+app.get("/api/hls-proxy", async (req, res) => {
+  try {
+    const target = String(req.query.url || "");
+    if (!target) return res.status(400).send("Missing url");
+
+    const targetUrl = new URL(target);
+    const allowedHosts = String(process.env.AUTHORIZED_VIDEO_HOSTS || "")
+      .split(",")
+      .map((host) => host.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (!allowedHosts.includes(targetUrl.hostname.toLowerCase())) {
+      return res.status(403).send("Host not allowed");
+    }
+
+    const response = await fetch(targetUrl, {
+      headers: {
+        "User-Agent": "Anime-API-21/1.1 (+authorized HLS proxy)"
+      },
+      signal: AbortSignal.timeout(20000)
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).send(await response.text());
+    }
+
+    const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+    const isPlaylist =
+      targetUrl.pathname.toLowerCase().endsWith(".m3u8") ||
+      contentType.includes("mpegurl");
+
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "no-store");
+
+    if (isPlaylist) {
+      const playlist = await response.text();
+      const proxyUrl = (url) => "/api/hls-proxy?url=" + encodeURIComponent(url);
+
+      const rewritten = playlist.split(/\r?\n/).map((line) => {
+        const trimmed = line.trim();
+        if (!trimmed) return line;
+
+        if (trimmed.startsWith("#")) {
+          return line.replace(/URI="([^"]+)"/g, (match, uri) => {
+            try {
+              return 'URI="' + proxyUrl(new URL(uri, targetUrl).toString()) + '"';
+            } catch {
+              return match;
+            }
+          });
+        }
+
+        try {
+          return proxyUrl(new URL(trimmed, targetUrl).toString());
+        } catch {
+          return line;
+        }
+      }).join("\n");
+
+      res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+      return res.send(rewritten);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.setHeader("Content-Type", response.headers.get("content-type") || "application/octet-stream");
+    return res.send(buffer);
+  } catch (error) {
+    console.error("Authorized HLS proxy error:", error.message);
+    return res.status(502).send("HLS proxy error");
+  }
+});
+
 app.use("/api", animeRoutes);
 app.use("/api", movieRoutes);
 app.use("/api/admin", adminRoutes);
