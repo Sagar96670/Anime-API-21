@@ -183,59 +183,52 @@ A successful health response includes current anime, episode and movie counts pl
 
 ## Vercel deployment
 
-Vercel uses serverless functions, so the local JSON file cannot be treated as persistent storage. On Vercel, the same JSON database is stored as a private Vercel Blob object; Docker/Render deployments continue to use the local `data/anime-db.json` file.
+Vercel follows the same lightweight architecture as the old API: there is **no MongoDB, no Vercel Blob and no external JSON storage**.
 
-### One-time Vercel setup
-
-1. Create a **private Vercel Blob store** and connect it to this project.
-2. Confirm the deployment has Blob access through the Vercel project environment.
-3. Add `CRON_SECRET` as a random secret of at least 16 characters.
-4. Redeploy the project after the environment variables are available.
-
-The repository contains `vercel.json`, which registers a daily production Cron Job at 02:00 UTC:
+The JSON database is:
 
 ```text
-GET /api/cron/sync
+data/anime-db.json
 ```
 
-Vercel sends the configured `CRON_SECRET` as the `Authorization: Bearer ...` header. The endpoint runs the same public metadata synchronizer used by the admin API.
+`vercel.json` bundles that file with the `server.js` serverless function:
 
-Vercel Hobby currently permits Cron Jobs only once per day, so this project intentionally uses a daily schedule. Pro/Enterprise can use a more frequent schedule if required.
-
-### Vercel JSON storage
-
-The database path remains conceptually the same:
-
-```text
-anime-api-21/anime-db.json
+```json
+{
+  "functions": {
+    "server.js": {
+      "includeFiles": "data/anime-db.json"
+    }
+  }
+}
 ```
 
-On Vercel it is stored privately in Blob, with cache-bypassed reads so the API sees the latest successful sync. Vercel Blob supports private storage and consistent reads for this use case.
+On Vercel, the deployed JSON is treated as bundled/read-only persistent data. Runtime changes are only kept in the current function instance and are not a replacement for persistent storage.
 
-### First sync after deployment
+### Updating the Vercel catalog
 
-After the new deployment is live, trigger the protected endpoint once from a terminal or API client using your `CRON_SECRET`:
+To permanently refresh the catalog without adding another database or storage service:
 
-```bash
-curl https://YOUR-VERCEL-DOMAIN/api/cron/sync \
-  -H "Authorization: Bearer YOUR_CRON_SECRET"
-```
+1. Run the metadata sync locally:
+   ```bash
+   npm install
+   npm run sync
+   ```
+2. Check the generated `data/anime-db.json`.
+3. Commit and push the updated JSON to GitHub.
+4. Vercel redeploys the project and bundles the new JSON.
 
-Then verify:
+This keeps the deployment simple and matches the old API's JSON-file approach.
 
-```text
-GET https://YOUR-VERCEL-DOMAIN/api/health
-GET https://YOUR-VERCEL-DOMAIN/api/catalog?page=1&limit=20
-```
+### Automatic sync limitation
 
-The Cron Job itself is registered from `vercel.json` and runs only on the production deployment.
+A normal Vercel serverless function is not a permanently running Node.js process, so the local `setInterval` scheduler is intentionally disabled on Vercel. Without an external scheduler, database service, Blob storage, or another persistent store, a serverless runtime cannot permanently write the refreshed JSON back into the deployment.
+
+Local/Docker/Render deployments can still use the existing automatic sync interval.
 
 ### Important
 
-The Vercel Blob store is storage for the JSON file; it is not MongoDB and does not change the API's JSON data model.
-
-The synchronizer continues to process public/authorized metadata only. It does not bypass protected video players or extract hidden third-party streams.
-
+The synchronizer processes public or authorized metadata only. It does not bypass protected video players or extract hidden third-party video streams.
 
 ## Render deployment
 
