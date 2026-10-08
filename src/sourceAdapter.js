@@ -188,11 +188,12 @@ async function scrapeDesiDubAnime(baseUrl) {
     const batch = anime.slice(i, i + concurrency);
     const results = await Promise.all(batch.map((item) => scrapeAnimePage(item).catch((error) => {
       console.error("Skipping anime page:", item.sourceUrl, error.message);
-      return { anime: item, episodes: [] };
+      return null;
     })));
 
     for (const result of results) {
-      enrichedAnime.push(result.anime);
+      if (!result) continue;
+      enrichedAnime.push({ ...result.anime, sourceSyncComplete: true });
       episodes.push(...result.episodes);
     }
   }
