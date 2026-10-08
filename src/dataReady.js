@@ -5,10 +5,14 @@ const { syncCatalog } = require("./sync");
 let inFlight = null;
 
 function hasCatalogData(db) {
-  return (
-    Array.isArray(db.anime) &&
-    db.anime.length > 0
-  );
+  const animeReady = Array.isArray(db.anime) && db.anime.length > 0;
+  const episodesReady = Array.isArray(db.episodes) && db.episodes.length > 0;
+  const moviesReady = Array.isArray(db.movies) && db.movies.length > 0;
+
+  // The first sync can populate anime before the episode/movie pass finishes.
+  // Treat that partial state as not ready so the next request retries the
+  // complete catalog build automatically.
+  return animeReady && (episodesReady || moviesReady);
 }
 
 async function ensureDataReady() {
