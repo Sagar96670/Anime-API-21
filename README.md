@@ -200,7 +200,7 @@ GET /api/cron/sync
 
 Vercel sends the configured `CRON_SECRET` as the `Authorization: Bearer ...` header. The endpoint runs the same public metadata synchronizer used by the admin API.
 
-Vercel Hobby currently permits Cron Jobs only once per day, so this project intentionally uses a daily schedule. Pro/Enterprise can use a more frequent schedule if required. citeturn1search0
+Vercel Hobby currently permits Cron Jobs only once per day, so this project intentionally uses a daily schedule. Pro/Enterprise can use a more frequent schedule if required.
 
 ### Vercel JSON storage
 
@@ -210,7 +210,7 @@ The database path remains conceptually the same:
 anime-api-21/anime-db.json
 ```
 
-On Vercel it is stored privately in Blob, with cache-bypassed reads so the API sees the latest successful sync. Vercel Blob supports private storage and consistent reads for this use case. citeturn0search2turn0search8
+On Vercel it is stored privately in Blob, with cache-bypassed reads so the API sees the latest successful sync. Vercel Blob supports private storage and consistent reads for this use case.
 
 ### First sync after deployment
 
@@ -228,7 +228,7 @@ GET https://YOUR-VERCEL-DOMAIN/api/health
 GET https://YOUR-VERCEL-DOMAIN/api/catalog?page=1&limit=20
 ```
 
-The Cron Job itself is registered from `vercel.json` and runs only on the production deployment. citeturn1search2
+The Cron Job itself is registered from `vercel.json` and runs only on the production deployment.
 
 ### Important
 
