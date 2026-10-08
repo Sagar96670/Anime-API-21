@@ -1,8 +1,8 @@
 {
   "name": "anime-api-21",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "private": true,
-  "description": "Lightweight anime catalog API using Node.js, Express and a JSON file database.",
+  "description": "Lightweight anime catalog API using Node.js, Express and a bundled JSON file database.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -15,7 +15,6 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@vercel/blob": "^2.6.1",
     "cors": "^2.8.5",
     "express": "^5.1.0"
   }
