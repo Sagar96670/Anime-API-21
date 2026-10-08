@@ -125,6 +125,9 @@ function extractSeasonNumbers(html) {
 }
 
 function extractEpisodes(html, anime, season) {
+  // DesiDubAnime currently renders episode items with several different
+  // WordPress/theme layouts. Prefer episode-numbered URLs/text, and do not
+  // require the literal word "Episode" to be present in the anchor text.
   const episodes = [];
   const seen = new Set();
   const regex = /<a[^>]+href=[\"']([^\"']+)[\"'][^>]*>([\s\S]{0,1200}?)<\/a>/gi;
@@ -132,13 +135,19 @@ function extractEpisodes(html, anime, season) {
 
   while ((match = regex.exec(html))) {
     const anchorText = decodeHtml(match[2]);
-    const episodeMatch = anchorText.match(/\bEpisode\s*(\d+)\b/i);
+    const episodeMatch =
+      anchorText.match(/\bEpisode\s*(\d+)\b/i) ||
+      anchorText.match(/\bEp(?:isode)?\.?\s*(\d+)\b/i) ||
+      match[1].match(/(?:episode|ep)[-_/]?(\d+)(?:\D|$)/i);
+
     if (!episodeMatch) continue;
 
     const episode = Number(episodeMatch[1]);
     if (!Number.isInteger(episode) || episode < 1) continue;
 
     const url = absoluteUrl(anime.sourceUrl, match[1]);
+    if (!url || url === anime.sourceUrl) continue;
+
     const key = anime.id + "-s" + season + "-e" + episode;
     if (seen.has(key)) continue;
 
