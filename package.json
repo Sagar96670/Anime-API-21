@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "sync": "node scripts/sync-catalog.js"
+    "sync": "node scripts/sync-catalog.js",
+    "sync:url": "node scripts/sync-url.js"
   },
   "engines": {
     "node": ">=18"
