@@ -1102,7 +1102,7 @@ video:-webkit-full-screen {
       episodeItems = result.data
         .slice()
         .sort((a, b) =>
-          Number(a.episode_number) - Number(b.episode_number)
+          Number(a.episode) - Number(b.episode)
         );
 
       renderEpisodeNavigation();
@@ -1127,6 +1127,10 @@ video:-webkit-full-screen {
         video.poster = streamData.poster;
       }
 
+      const videoUrl = streamData.hls && streamData.video_url
+        ? "/api/hls-proxy?url=" + encodeURIComponent(streamData.video_url)
+        : streamData.video_url;
+
       if (streamData.playback_mode === "iframe" && streamData.iframe_url) {
         video.style.display = "none";
         document.getElementById("qualityControls").style.display = "none";
@@ -1145,7 +1149,6 @@ video:-webkit-full-screen {
 
         status.textContent = "Public player loaded.";
       } else if (streamData.hls && streamData.video_url && window.Hls && Hls.isSupported()) {
-        const videoUrl = "/api/hls-proxy?url=" + encodeURIComponent(streamData.video_url);
         console.log("Using HLS.js");
 
         
@@ -1758,6 +1761,7 @@ video:-webkit-full-screen {
         });
 
       } else if (
+        streamData.hls &&
         video.canPlayType("application/vnd.apple.mpegurl")
       ) {
         console.log("Using native HLS");
@@ -1772,9 +1776,16 @@ video:-webkit-full-screen {
           });
         }, { once: true });
 
+      } else if (!streamData.hls && streamData.video_url) {
+        console.log("Using direct video source");
+
+        video.src = streamData.video_url;
+        video.addEventListener("loadedmetadata", function() {
+          status.textContent = "Video ready.";
+        }, { once: true });
       } else {
         throw new Error(
-          "This browser does not support HLS playback."
+          "No playable video source is available for this browser."
         );
       }
 
