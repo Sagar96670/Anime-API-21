@@ -112,11 +112,15 @@ function extractSeasonLinks(html, base) {
 function extractEpisodes(html, anime, season) {
   const episodes = [];
   const seen = new Set();
-  const regex = /href=[\"']([^\"']+)[\"'][^>]*>([\s\S]{0,700}?Episode\s*(\d+)[^<]*)/gi;
+  const regex = /<a[^>]+href=[\"']([^\"']+)[\"'][^>]*>([\s\S]{0,1200}?)<\/a>/gi;
   let match;
 
   while ((match = regex.exec(html))) {
-    const episode = Number(match[3]);
+    const anchorText = decodeHtml(match[2]);
+    const episodeMatch = anchorText.match(/\bEpisode\s*(\d+)\b/i);
+    if (!episodeMatch) continue;
+
+    const episode = Number(episodeMatch[1]);
     if (!Number.isInteger(episode) || episode < 1) continue;
 
     const url = absoluteUrl(anime.sourceUrl, match[1]);
@@ -129,7 +133,7 @@ function extractEpisodes(html, anime, season) {
       animeId: anime.id,
       season,
       episode,
-      title: decodeHtml(match[2]).replace(/\s+/g, " ").trim(),
+      title: anchorText.replace(/\s+/g, " ").trim(),
       sourceUrl: url,
       sources: []
     });
@@ -167,7 +171,7 @@ async function scrapeAnimePage(anime) {
 
 async function scrapeDesiDubAnime(baseUrl) {
   const base = baseUrl.replace(/\/$/, "");
-  const maxPages = Math.min(Math.max(Number(process.env.SOURCE_MAX_PAGES) || 5, 1), 20);
+  const maxPages = Math.min(Math.max(Number(process.env.SOURCE_MAX_PAGES) || 20, 1), 20);
   const concurrency = Math.min(Math.max(Number(process.env.SYNC_CONCURRENCY) || 4, 1), 8);
   const anime = [];
   const seen = new Set();
