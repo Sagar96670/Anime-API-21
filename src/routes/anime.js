@@ -48,7 +48,20 @@ router.get("/anime/:id", async (req, res, next) => {
     const anime = db.anime.find((item) => item.id === req.params.id || item.slug === req.params.id);
     if (!anime) return res.status(404).json({ error: "Anime not found" });
     const episodes = db.episodes.filter((episode) => episode.animeId === anime.id);
-    const seasons = [...new Set(episodes.map((episode) => episode.season))].sort((a, b) => a - b);
+    const seasonSet = new Set(
+      (Array.isArray(anime.seasons) ? anime.seasons : [])
+        .map(Number)
+        .filter((season) => Number.isInteger(season) && season > 0)
+    );
+
+    for (const episode of episodes) {
+      const season = Number(episode.season ?? 1);
+      if (Number.isInteger(season) && season > 0) {
+        seasonSet.add(season);
+      }
+    }
+
+    const seasons = [...seasonSet].sort((a, b) => a - b);
     res.json({ ...anime, seasons, episodeCount: episodes.length });
   } catch (error) { next(error); }
 });
