@@ -96,7 +96,7 @@ function extractEpisodes(html, anime) {
     const episode = Number(match[3]);
     if (!Number.isFinite(episode)) continue;
     const url = absoluteUrl(anime.sourceUrl, match[1]);
-    const key = \${anime.id} + "-s1-e" + episode;
+    const key = anime.id + "-s1-e" + episode;
     if (seen.has(key)) continue;
     seen.add(key);
     episodes.push({
