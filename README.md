@@ -13,7 +13,7 @@ Lightweight anime catalog API built with Node.js + Express + JSON.
 - Serialized JSON writes to avoid concurrent sync corruption.
 - Stale episodes are removed when a successfully synced source page no longer lists them.
 - CORS enabled for frontend/mobile clients.
-- Video `sources` remain empty unless you provide a public/authorized source.
+- Video `sources` remain empty unless you provide a public/authorized source. The stream endpoint returns only an explicitly configured authorized `video_url`; it does not discover hidden player URLs.
 
 The target source currently used by default is [Desi Dub Anime](https://www.desidubanime.me). Its public pages expose multiple season buttons and episode listings, which the adapter uses for metadata synchronization.
 
@@ -40,6 +40,8 @@ Server: `http://localhost:3000`
 - `GET /api/anime/:id/seasons`
 - `GET /api/anime/:id/episodes?season=1`
 - `GET /api/anime/:id/episode/:season/:episode`
+- `GET /api/anime/:id/episode/:season/:episode/stream` (authorized direct/HLS source)
+- `GET /api/hls-proxy?url=...` (authorized hosts only)
 - `GET /api/movies?page=1&limit=20&search=...`
 - `GET /api/movie/:id`
 
@@ -112,7 +114,7 @@ Records are upserted by ID.
 
 The adapter is for public or authorized metadata. It collects metadata such as title, poster, season and episode listings. It does not bypass access controls or extract hidden/protected third-party video streams or player internals.
 
-If you have a public or authorized video provider, its URLs can be stored in episode `sources`.
+If you have a public or authorized video provider, store its HLS/MP4 URL in episode `video_url` or `sources`. For HLS proxying, set `AUTHORIZED_VIDEO_HOSTS` to the provider hostname(s). Real HLS quality/audio tracks are discovered by the existing frontend player from the returned `.m3u8` manifest; the API does not invent quality or language options.
 
 ## Admin sync
 
