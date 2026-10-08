@@ -62,7 +62,7 @@ Defaults:
 
 ```env
 METADATA_FEED_URL=https://www.desidubanime.me
-SOURCE_MAX_PAGES=5
+SOURCE_MAX_PAGES=20
 SYNC_CONCURRENCY=4
 SYNC_INTERVAL_MINUTES=60
 ```
@@ -140,3 +140,42 @@ Both endpoints require the configured API key.
 ## Existing player
 
 The original custom episode player is preserved at `public/episode.html` and is served by Express. It calls the new episode and stream endpoints directly. HLS playback uses the authorized `/api/hls-proxy` only when the stream response declares `hls: true`; direct authorized MP4 sources are loaded directly. The player uses real HLS quality and audio tracks from the manifest and does not invent options.
+
+
+## Production deployment
+
+The server listens on `0.0.0.0` and uses the platform-provided `PORT`.
+
+Docker:
+
+```bash
+docker build -t anime-api-21 .
+docker run -d \
+  --name anime-api-21 \
+  -p 3000:3000 \
+  -v anime-api-data:/app/data \
+  -e ADMIN_API_KEY="YOUR_LONG_RANDOM_SECRET" \
+  anime-api-21
+```
+
+The JSON database lives in `/app/data`. Keep that directory on a persistent volume when using Docker or a container platform; otherwise a replacement container can lose local catalog data.
+
+Recommended production environment:
+
+```env
+NODE_ENV=production
+PORT=3000
+METADATA_FEED_URL=https://www.desidubanime.me
+SOURCE_MAX_PAGES=20
+SYNC_CONCURRENCY=4
+SYNC_INTERVAL_MINUTES=60
+ADMIN_API_KEY=YOUR_LONG_RANDOM_SECRET
+```
+
+Use the deployment platform's persistent-disk/volume feature for `/app/data`. The health endpoint is:
+
+```
+GET /api/health
+```
+
+A successful health response includes current anime, episode and movie counts plus sync state.
