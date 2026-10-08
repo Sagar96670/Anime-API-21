@@ -1,0 +1,29 @@
+{
+  "anime": [
+    {
+      "id": "example-anime",
+      "slug": "example-anime",
+      "title": "Example Anime",
+      "altTitles": [],
+      "poster": "",
+      "description": "",
+      "genres": [],
+      "type": "TV",
+      "status": "ongoing",
+      "year": 2026
+    }
+  ],
+  "episodes": [
+    {
+      "id": "example-anime-s1-e1",
+      "animeId": "example-anime",
+      "season": 1,
+      "episode": 1,
+      "title": "Episode 1",
+      "thumbnail": "",
+      "duration": null,
+      "sources": []
+    }
+  ],
+  "movies": []
+}
