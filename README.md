@@ -62,12 +62,11 @@ Defaults:
 
 ```env
 METADATA_FEED_URL=https://www.desidubanime.me
-SOURCE_MAX_PAGES=20
 SYNC_CONCURRENCY=4
 SYNC_INTERVAL_MINUTES=60
 ```
 
-`SOURCE_MAX_PAGES` is capped at 20 and `SYNC_CONCURRENCY` is capped at 8.
+Catalog pagination is discovered from the source site itself. There is no hard-coded maximum page count, so newly created pagination pages are picked up automatically on the next sync. `SYNC_CONCURRENCY` is capped at 8 to avoid overloading the source.
 
 ## Season handling
 
@@ -166,7 +165,6 @@ Recommended production environment:
 NODE_ENV=production
 PORT=3000
 METADATA_FEED_URL=https://www.desidubanime.me
-SOURCE_MAX_PAGES=20
 SYNC_CONCURRENCY=4
 SYNC_INTERVAL_MINUTES=60
 ADMIN_API_KEY=YOUR_LONG_RANDOM_SECRET
