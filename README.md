@@ -181,6 +181,62 @@ GET /api/health
 A successful health response includes current anime, episode and movie counts plus sync state.
 
 
+## Vercel deployment
+
+Vercel uses serverless functions, so the local JSON file cannot be treated as persistent storage. On Vercel, the same JSON database is stored as a private Vercel Blob object; Docker/Render deployments continue to use the local `data/anime-db.json` file.
+
+### One-time Vercel setup
+
+1. Create a **private Vercel Blob store** and connect it to this project.
+2. Confirm the deployment has Blob access through the Vercel project environment.
+3. Add `CRON_SECRET` as a random secret of at least 16 characters.
+4. Redeploy the project after the environment variables are available.
+
+The repository contains `vercel.json`, which registers a daily production Cron Job at 02:00 UTC:
+
+```text
+GET /api/cron/sync
+```
+
+Vercel sends the configured `CRON_SECRET` as the `Authorization: Bearer ...` header. The endpoint runs the same public metadata synchronizer used by the admin API.
+
+Vercel Hobby currently permits Cron Jobs only once per day, so this project intentionally uses a daily schedule. Pro/Enterprise can use a more frequent schedule if required. citeturn1search0
+
+### Vercel JSON storage
+
+The database path remains conceptually the same:
+
+```text
+anime-api-21/anime-db.json
+```
+
+On Vercel it is stored privately in Blob, with cache-bypassed reads so the API sees the latest successful sync. Vercel Blob supports private storage and consistent reads for this use case. citeturn0search2turn0search8
+
+### First sync after deployment
+
+After the new deployment is live, trigger the protected endpoint once from a terminal or API client using your `CRON_SECRET`:
+
+```bash
+curl https://YOUR-VERCEL-DOMAIN/api/cron/sync \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+```
+
+Then verify:
+
+```text
+GET https://YOUR-VERCEL-DOMAIN/api/health
+GET https://YOUR-VERCEL-DOMAIN/api/catalog?page=1&limit=20
+```
+
+The Cron Job itself is registered from `vercel.json` and runs only on the production deployment. citeturn1search2
+
+### Important
+
+The Vercel Blob store is storage for the JSON file; it is not MongoDB and does not change the API's JSON data model.
+
+The synchronizer continues to process public/authorized metadata only. It does not bypass protected video players or extract hidden third-party streams.
+
+
 ## Render deployment
 
 The repository includes `render.yaml` for a Docker-based Render deployment.
