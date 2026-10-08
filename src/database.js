@@ -3,7 +3,7 @@ const path = require("path");
 
 const DB_PATH = path.join(__dirname, "..", "data", "anime-db.json");
 const EMPTY_DATABASE = {
-  version: 1,
+  version: 2,
   updatedAt: null,
   anime: [],
   episodes: [],
@@ -13,7 +13,7 @@ const EMPTY_DATABASE = {
 function normalizeDatabase(db) {
   const value = db && typeof db === "object" ? db : {};
   return {
-    version: Number(value.version) || 1,
+    version: Number(value.version) || 2,
     updatedAt: value.updatedAt || null,
     anime: Array.isArray(value.anime) ? value.anime : [],
     episodes: Array.isArray(value.episodes) ? value.episodes : [],
@@ -36,24 +36,28 @@ async function readDatabase() {
   return normalizeDatabase(JSON.parse(raw));
 }
 
-let writeQueue = Promise.resolve();
+let mutationQueue = Promise.resolve();
 
-function writeDatabase(db) {
-  const nextDb = normalizeDatabase(db);
-  writeQueue = writeQueue.then(async () => {
-    nextDb.updatedAt = new Date().toISOString();
-    const tempPath = DB_PATH + ".tmp";
-    await fs.writeFile(tempPath, JSON.stringify(nextDb, null, 2));
+function updateDatabase(mutator) {
+  const operation = mutationQueue.then(async () => {
+    const db = await readDatabase();
+    await mutator(db);
+    db.updatedAt = new Date().toISOString();
+
+    const tempPath = DB_PATH + "." + process.pid + ".tmp";
+    await fs.writeFile(tempPath, JSON.stringify(normalizeDatabase(db), null, 2));
     await fs.rename(tempPath, DB_PATH);
+    return db;
   });
-  return writeQueue;
+
+  mutationQueue = operation.catch(() => {});
+  return operation;
 }
 
-async function updateDatabase(mutator) {
-  const db = await readDatabase();
-  await mutator(db);
-  await writeDatabase(db);
-  return db;
+async function writeDatabase(db) {
+  return updateDatabase(async (current) => {
+    Object.assign(current, normalizeDatabase(db));
+  });
 }
 
 module.exports = { DB_PATH, EMPTY_DATABASE, readDatabase, writeDatabase, updateDatabase };
