@@ -9,6 +9,8 @@ let state = {
   lastError: null
 };
 
+let timer = null;
+
 function getSyncState() {
   return { ...state };
 }
@@ -39,4 +41,33 @@ async function runRemoteSync() {
   }
 }
 
-module.exports = { getSyncState, runRemoteSync };
+function startAutomaticSync() {
+  if (timer || !process.env.METADATA_FEED_URL) {
+    return false;
+  }
+
+  const intervalMinutes = Math.max(Number(process.env.SYNC_INTERVAL_MINUTES) || 60, 5);
+  const intervalMs = intervalMinutes * 60 * 1000;
+
+  runRemoteSync().catch((error) => {
+    console.error(new Date().toISOString(), "Initial metadata sync failed:", error.message);
+  });
+
+  timer = setInterval(() => {
+    runRemoteSync().catch((error) => {
+      console.error(new Date().toISOString(), "Scheduled metadata sync failed:", error.message);
+    });
+  }, intervalMs);
+
+  console.log("Automatic metadata sync enabled every " + intervalMinutes + " minutes.");
+  return true;
+}
+
+function stopAutomaticSync() {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+}
+
+module.exports = { getSyncState, runRemoteSync, startAutomaticSync, stopAutomaticSync };
