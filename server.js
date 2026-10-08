@@ -3,6 +3,7 @@ const cors = require("cors");
 const { readDatabase } = require("./src/database");
 const animeRoutes = require("./src/routes/anime");
 const movieRoutes = require("./src/routes/movies");
+const adminRoutes = require("./src/routes/admin");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -37,6 +38,7 @@ app.get("/api/health", async (req, res, next) => {
 
 app.use("/api", animeRoutes);
 app.use("/api", movieRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.use((req, res) => res.status(404).json({ error: "Route not found" }));
 app.use((error, req, res, next) => {
