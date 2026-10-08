@@ -1,15 +1,17 @@
 {
   "name": "anime-api-21",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "description": "Lightweight anime catalog API using Node.js, Express and a bundled JSON file database.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "sync": "node scripts/sync-catalog.js",
+    "sync": "node scripts/sync-url.js",
     "sync:url": "node scripts/sync-url.js",
-    "sync:auto": "node scripts/auto-sync.js"
+    "sync:auto": "node scripts/auto-sync.js",
+    "sync:file": "node scripts/sync-catalog.js",
+    "vercel-build": "npm run sync"
   },
   "engines": {
     "node": ">=18"
