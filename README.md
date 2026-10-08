@@ -90,7 +90,7 @@ JSON mutations are serialized and written through a temporary file followed by a
 ## Local JSON feed
 
 ```bash
-npm run sync -- data/example-catalog.json
+npm run sync:file -- data/example-catalog.json
 ```
 
 ## Remote JSON feed
@@ -207,18 +207,27 @@ On Vercel, the deployed JSON is treated as bundled/read-only persistent data. Ru
 
 ### Updating the Vercel catalog
 
-To permanently refresh the catalog without adding another database or storage service:
+Vercel runs the `vercel-build` script during deployment. That build step runs the metadata sync and writes the refreshed catalog into `data/anime-db.json` before the JSON file is bundled with the serverless function.
 
-1. Run the metadata sync locally:
-   ```bash
-   npm install
-   npm run sync
-   ```
-2. Check the generated `data/anime-db.json`.
-3. Commit and push the updated JSON to GitHub.
-4. Vercel redeploys the project and bundles the new JSON.
+The default build-time source is:
 
-This keeps the deployment simple and matches the old API's JSON-file approach.
+```text
+https://www.desidubanime.me
+```
+
+You can override it with the Vercel project environment variable:
+
+```env
+METADATA_FEED_URL=https://your-authorized-source.example/catalog.json
+```
+
+For a local refresh, run:
+
+```bash
+npm run sync
+```
+
+The sync must complete successfully before deployment continues, so a failed source fetch does not silently deploy an empty catalog.
 
 ### Automatic sync limitation
 
