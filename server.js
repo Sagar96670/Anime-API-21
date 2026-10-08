@@ -52,7 +52,7 @@ app.get("/", async (req, res, next) => {
   }
 });
 
-app.get("/api/health", (req, res, next) => {
+app.get("/api/health", async (req, res, next) => {
   try {
     const db = await ensureDataReady();
     const sync = getSyncState();
