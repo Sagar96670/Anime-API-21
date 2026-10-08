@@ -67,7 +67,13 @@ function extractAnimeCards(html, base) {
 
   while ((match = linkRegex.exec(html))) {
     const href = absoluteUrl(base, match[1]);
-    if (!href || seen.has(href) || href === base + "/anime/" || href.includes("/anime-type/")) continue;
+    if (
+      !href ||
+      seen.has(href) ||
+      href === base + "/anime/" ||
+      href.includes("/anime-type/") ||
+      /\/anime\/page\/\d+\/?$/i.test(new URL(href).pathname)
+    ) continue;
 
     const block = match[0] + match[2];
     const titleMatch = block.match(/title=[\"']([^\"']+)[\"']/i);
@@ -162,8 +168,8 @@ function extractSeasonNumbers(html) {
 }
 
 function extractCatalogPageUrls(html, base) {
-  const urls = new Set();
-  const regex = /<a[^>]+href=["']([^"']+)["'][^>]*>/gi;
+  const urls = new Map();
+  const regex = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]{0,300}?)<\/a>/gi;
   let match;
 
   while ((match = regex.exec(html))) {
@@ -172,17 +178,20 @@ function extractCatalogPageUrls(html, base) {
 
     try {
       const parsed = new URL(url);
-      const basePath = new URL(base + "/anime/").pathname;
       const path = parsed.pathname.replace(/\/+$/, "");
-      const matchPage = path.match(/\/anime\/page\/(\d+)$/i);
+      const pageMatch = path.match(/\/anime\/page\/(\d+)$/i);
+      if (!pageMatch) continue;
 
-      if (path === basePath.replace(/\/+$/, "") || matchPage) {
-        urls.add(url.replace(/\/+$/, "") + "/");
-      }
+      const page = Number(pageMatch[1]);
+      if (!Number.isInteger(page) || page < 2) continue;
+
+      urls.set(page, url.replace(/\/+$/, "") + "/");
     } catch {}
   }
 
-  return [...urls];
+  return [...urls.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, url]) => url);
 }
 
 function extractEpisodes(html, anime, season) {
@@ -308,16 +317,25 @@ async function scrapeDesiDubAnime(baseUrl) {
       // Discover whatever pagination pages the site currently exposes.
       // This is intentionally recursive/graph-based rather than capped at
       // page 100, so future pages are picked up automatically.
-      for (const url of extractCatalogPageUrls(result.html, base)) {
+      const discoveredPages = extractCatalogPageUrls(result.html, base);
+      for (const url of discoveredPages) {
         if (queuedUrls.has(url) || fetchedUrls.has(url)) continue;
 
         const match = url.match(/\/anime\/page\/(\d+)\/?$/i);
-        const page = match ? Number(match[1]) : 1;
-        if (page === 1) continue;
+        if (!match) continue;
+
+        const page = Number(match[1]);
+        if (!Number.isInteger(page) || page < 2) continue;
 
         queuedUrls.add(url);
         pendingPages.set(page + ":" + url, url);
       }
+
+      console.log(
+        "Catalog page " + result.page +
+        " yielded " + extractAnimeCards(result.html, base).length +
+        " anime and exposed " + discoveredPages.length + " pagination pages."
+      );
     }
   }
 
