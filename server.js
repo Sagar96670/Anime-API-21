@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const { readDatabase } = require("./src/database");
+const { ensureDataReady } = require("./src/dataReady");
 const animeRoutes = require("./src/routes/anime");
 const movieRoutes = require("./src/routes/movies");
 const adminRoutes = require("./src/routes/admin");
@@ -25,10 +26,12 @@ app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static("public"));
 
-app.get("/", (req, res) => {
-  res.json({
+app.get("/", async (req, res, next) => {
+  try {
+    await ensureDataReady();
+    res.json({
     name: "Anime API 21",
-    version: "1.1.1",
+    version: "1.1.2",
     status: "ok",
     database: "json",
     metadataSource: TARGET_SITE_URL,
@@ -43,12 +46,15 @@ app.get("/", (req, res) => {
       movies: "/api/movies?page=1&limit=20&search=...",
       movie: "/api/movie/:id"
     }
-  });
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get("/api/health", (req, res, next) => {
   try {
-    const db = readDatabase();
+    const db = await ensureDataReady();
     const sync = getSyncState();
 
     res.json({
