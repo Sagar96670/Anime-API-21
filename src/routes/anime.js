@@ -58,14 +58,22 @@ router.get("/anime/:id/seasons", async (req, res, next) => {
     const db = await readDatabase();
     const anime = db.anime.find((item) => item.id === req.params.id || item.slug === req.params.id);
     if (!anime) return res.status(404).json({ error: "Anime not found" });
-    const seasons = db.episodes.filter((episode) => episode.animeId === anime.id)
-      .reduce((map, episode) => {
-        const key = String(episode.season ?? 1);
-        if (!map[key]) map[key] = { season: Number(key), episodeCount: 0 };
-        map[key].episodeCount++;
-        return map;
-      }, {});
-    res.json(Object.values(seasons).sort((a, b) => a.season - b.season));
+    const seasons = new Map(
+      (Array.isArray(anime.seasons) ? anime.seasons : [])
+        .map((season) => [Number(season), { season: Number(season), episodeCount: 0 }])
+        .filter(([season]) => Number.isInteger(season) && season > 0)
+    );
+
+    for (const episode of db.episodes.filter((item) => item.animeId === anime.id)) {
+      const season = Number(episode.season ?? 1);
+      if (!Number.isInteger(season) || season < 1) continue;
+      if (!seasons.has(season)) {
+        seasons.set(season, { season, episodeCount: 0 });
+      }
+      seasons.get(season).episodeCount++;
+    }
+
+    res.json([...seasons.values()].sort((a, b) => a.season - b.season));
   } catch (error) { next(error); }
 });
 
