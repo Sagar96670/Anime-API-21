@@ -14,34 +14,68 @@ function upsertById(list, item) {
   return "updated";
 }
 
+function cleanEpisodes(episodes) {
+  const seen = new Set();
+  return episodes.filter((item) => {
+    if (!item.id || !item.animeId || !Number.isInteger(Number(item.season)) || !Number.isInteger(Number(item.episode))) return false;
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
 async function syncCatalog(payload) {
   const anime = Array.isArray(payload.anime) ? payload.anime : [];
-  const episodes = Array.isArray(payload.episodes) ? payload.episodes : [];
+  const episodes = cleanEpisodes(Array.isArray(payload.episodes) ? payload.episodes : []);
   const movies = Array.isArray(payload.movies) ? payload.movies : [];
 
   return updateDatabase((db) => {
-    const result = { anime: { created: 0, updated: 0 }, episodes: { created: 0, updated: 0 }, movies: { created: 0, updated: 0 } };
+    const result = {
+      anime: { created: 0, updated: 0 },
+      episodes: { created: 0, updated: 0, removed: 0 },
+      movies: { created: 0, updated: 0 }
+    };
+
+    const syncedAnimeIds = new Set();
 
     for (const item of anime) {
       if (!item.id || !item.title) continue;
-      const status = upsertById(db.anime, {
+      const normalized = {
         ...item,
         id: normalize(item.id),
         title: normalize(item.title),
-        slug: normalize(item.slug || item.id)
-      });
+        slug: normalize(item.slug || item.id),
+        seasons: Array.isArray(item.seasons)
+          ? [...new Set(item.seasons.map(Number).filter((value) => Number.isInteger(value) && value > 0))].sort((a, b) => a - b)
+          : []
+      };
+      const status = upsertById(db.anime, normalized);
+      syncedAnimeIds.add(normalized.id);
       result.anime[status]++;
     }
 
+    const incomingEpisodeIds = new Set(episodes.map((item) => normalize(item.id)));
+
+    if (syncedAnimeIds.size) {
+      const before = db.episodes.length;
+      db.episodes = db.episodes.filter((item) => {
+        if (!syncedAnimeIds.has(item.animeId)) return true;
+        return incomingEpisodeIds.has(item.id);
+      });
+      result.episodes.removed = before - db.episodes.length;
+    }
+
     for (const item of episodes) {
-      if (!item.id || !item.animeId || !item.episode) continue;
-      const status = upsertById(db.episodes, {
+      if (!item.id || !item.animeId) continue;
+      const normalized = {
         ...item,
         id: normalize(item.id),
         animeId: normalize(item.animeId),
-        season: Number(item.season || 1),
-        episode: Number(item.episode)
-      });
+        season: Number(item.season),
+        episode: Number(item.episode),
+        sources: Array.isArray(item.sources) ? item.sources : []
+      };
+      const status = upsertById(db.episodes, normalized);
       result.episodes[status]++;
     }
 
