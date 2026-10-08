@@ -38,6 +38,10 @@ Remote metadata feed:
 
     npm run sync:url -- https://your-authorized-source.example/catalog.json
 
+Automatic live sync:
+
+When `METADATA_FEED_URL` is configured, `npm start` starts the API and the automatic metadata sync together. The first sync runs when the server starts, then repeats every `SYNC_INTERVAL_MINUTES` (minimum 5 minutes, default 60). No manual sync is required for normal operation.
+
 The remote feed must return JSON shaped as:
 
     {
