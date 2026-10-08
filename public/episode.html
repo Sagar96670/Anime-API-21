@@ -1005,13 +1005,13 @@ video:-webkit-full-screen {
 
     prevEpisodeButton.onclick = () => {
       if (previous) {
-        goToEpisode(previous.episode_number);
+        goToEpisode(previous.episode);
       }
     };
 
     nextEpisodeButton.onclick = () => {
       if (next) {
-        goToEpisode(next.episode_number);
+        goToEpisode(next.episode);
       }
     };
 
@@ -1127,13 +1127,28 @@ video:-webkit-full-screen {
         video.poster = streamData.poster;
       }
 
-      const videoUrl = streamData.hls
-        ? "/api/hls-proxy?url=" + encodeURIComponent(streamData.video_url)
-        : streamData.video_url;
+      if (streamData.playback_mode === "iframe" && streamData.iframe_url) {
+        video.style.display = "none";
+        document.getElementById("qualityControls").style.display = "none";
+        document.getElementById("audioControls").style.display = "none";
+        document.getElementById("animeCustomPlayer").querySelector(".anime-player-controls").style.display = "none";
+        document.getElementById("animeCenterPlay").style.display = "none";
 
-      if (window.Hls && Hls.isSupported()) {
+        const iframe = document.createElement("iframe");
+        iframe.src = streamData.iframe_url;
+        iframe.title = streamData.title || "Anime episode";
+        iframe.allow = "autoplay; fullscreen; picture-in-picture";
+        iframe.allowFullscreen = true;
+        iframe.referrerPolicy = "strict-origin-when-cross-origin";
+        iframe.style.cssText = "width:100%;height:100%;min-height:300px;border:0;background:#000;";
+        document.querySelector(".anime-player-video-area").appendChild(iframe);
+
+        status.textContent = "Public player loaded.";
+      } else if (streamData.hls && streamData.video_url && window.Hls && Hls.isSupported()) {
+        const videoUrl = "/api/hls-proxy?url=" + encodeURIComponent(streamData.video_url);
         console.log("Using HLS.js");
 
+        
         const hls = new Hls({
           maxBufferLength: 60,
           maxMaxBufferLength: 120,
@@ -1605,6 +1620,28 @@ video:-webkit-full-screen {
                 );
               }
             }, 300);
+          }
+        );
+
+        hls.on(
+          Hls.Events.ERROR,
+          function(event, data) {
+            console.error("HLS error:", data);
+
+            if (data && data.fatal) {
+              status.textContent = "Video playback error. Please try again.";
+              try {
+                if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                  hls.recoverMediaError();
+                } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                  hls.startLoad();
+                } else {
+                  hls.destroy();
+                }
+              } catch (error) {
+                console.warn("HLS recovery failed:", error);
+              }
+            }
           }
         );
 
