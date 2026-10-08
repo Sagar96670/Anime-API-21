@@ -168,6 +168,7 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
       stream_url: iframeUrl,
       video_url: iframeUrl,
       iframe_url: directSource ? null : iframeUrl,
+      playback_mode: directSource ? "direct" : "iframe",
       poster: episode.videoImage || episode.poster || anime.poster || null,
       sources: {
         video: true,
