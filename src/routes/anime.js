@@ -2,6 +2,29 @@ const express = require("express");
 const { readDatabase } = require("../database");
 
 const router = express.Router();
+async function fetchEpisodeIframeSrc(sourceUrl) {
+  if (!sourceUrl || !/^https?:\\/\\//i.test(sourceUrl)) return null;
+
+  const response = await fetch(sourceUrl, {
+    headers: {
+      "User-Agent": "Anime-API-21/1.1 (+public episode metadata)",
+      "Accept": "text/html,application/xhtml+xml"
+    },
+    signal: AbortSignal.timeout(15000)
+  });
+
+  if (!response.ok) return null;
+  const html = await response.text();
+  const match = html.match(/<iframe\\b[^>]*\\bsrc=["']([^"']+)["'][^>]*>/i);
+  if (!match) return null;
+
+  try {
+    return new URL(match[1], sourceUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
 
 router.get("/catalog", async (req, res, next) => {
   try {
@@ -70,25 +93,14 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
     const anime = db.anime.find((item) => item.id === req.params.id || item.slug === req.params.id);
 
     if (!anime) {
-      return res.status(404).json({
-        status: false,
-        message: "Anime not found"
-      });
+      return res.status(404).json({ status: false, message: "Anime not found" });
     }
 
     const season = Number(req.params.season);
     const episodeNumber = Number(req.params.episode);
 
-    if (
-      !Number.isInteger(season) ||
-      season < 1 ||
-      !Number.isInteger(episodeNumber) ||
-      episodeNumber < 1
-    ) {
-      return res.status(400).json({
-        status: false,
-        message: "Invalid season or episode number"
-      });
+    if (!Number.isInteger(season) || season < 1 || !Number.isInteger(episodeNumber) || episodeNumber < 1) {
+      return res.status(400).json({ status: false, message: "Invalid season or episode number" });
     }
 
     const episode = db.episodes.find((item) =>
@@ -98,16 +110,11 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
     );
 
     if (!episode) {
-      return res.status(404).json({
-        status: false,
-        message: "Episode not found"
-      });
+      return res.status(404).json({ status: false, message: "Episode not found" });
     }
 
-    // Video section: only use a direct/authorized source already stored in the JSON DB.
-    // No hidden player/hash extraction is performed here.
     const sources = Array.isArray(episode.sources) ? episode.sources : [];
-    const candidates = [
+    const directSource = [
       episode.video_url,
       episode.videoUrl,
       episode.stream_url,
@@ -117,33 +124,33 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
         if (!source || typeof source !== "object") return [];
         return [source.video_url, source.videoUrl, source.stream_url, source.streamUrl, source.url];
       })
-    ].filter((value) => typeof value === "string" && /^https?:\\/\\//i.test(value));
+    ].find((value) => typeof value === "string" && /^https?:\\/\\//i.test(value));
 
-    const videoUrl = candidates[0];
-
-    if (!videoUrl) {
+    // If no stored direct source exists, fetch only the public episode HTML
+    // and extract its iframe src. No player/hash resolution is performed.
+    const iframeUrl = directSource || await fetchEpisodeIframeSrc(episode.sourceUrl);
+    if (!iframeUrl) {
       return res.status(404).json({
         status: false,
-        message: "No authorized video source is configured for this episode"
+        message: "No public iframe or authorized video source found"
       });
     }
 
-    const hls = /\\.m3u8(?:$|[?#])/i.test(videoUrl);
-    const poster = episode.videoImage || episode.poster || anime.poster || null;
-
+    const isHls = /\\.m3u8(?:$|[?#])/i.test(iframeUrl);
     return res.json({
       status: true,
       anime_id: anime.id,
       season,
       episode: episodeNumber,
       title: episode.title || ("Episode " + episodeNumber),
-      hls,
-      video_url: videoUrl,
-      poster,
-      secured_link: episode.secured_link || episode.securedLink || null,
+      hls: isHls,
+      stream_url: iframeUrl,
+      video_url: iframeUrl,
+      iframe_url: directSource ? null : iframeUrl,
+      poster: episode.videoImage || episode.poster || anime.poster || null,
       sources: {
         video: true,
-        audio: hls
+        audio: isHls
       }
     });
   } catch (error) {
