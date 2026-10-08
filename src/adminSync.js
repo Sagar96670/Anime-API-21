@@ -42,7 +42,8 @@ async function runRemoteSync() {
 }
 
 function startAutomaticSync() {
-  if (timer || !process.env.METADATA_FEED_URL) {
+  // Vercel uses Cron Jobs instead of a long-lived setInterval timer.
+  if (process.env.VERCEL || timer || !process.env.METADATA_FEED_URL) {
     return false;
   }
 
