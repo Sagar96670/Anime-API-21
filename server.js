@@ -4,11 +4,17 @@ const { readDatabase } = require("./src/database");
 const animeRoutes = require("./src/routes/anime");
 const movieRoutes = require("./src/routes/movies");
 const adminRoutes = require("./src/routes/admin");
-const { getSyncState, startAutomaticSync, stopAutomaticSync } = require("./src/adminSync");
+const {
+  getSyncState,
+  startAutomaticSync,
+  stopAutomaticSync
+} = require("./src/adminSync");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
-const TARGET_SITE_URL = process.env.METADATA_FEED_URL || "https://www.desidubanime.me";
+const TARGET_SITE_URL =
+  process.env.METADATA_FEED_URL ||
+  "https://www.desidubanime.me";
 
 if (!process.env.METADATA_FEED_URL) {
   process.env.METADATA_FEED_URL = TARGET_SITE_URL;
@@ -22,11 +28,11 @@ app.use(express.static("public"));
 app.get("/", (req, res) => {
   res.json({
     name: "Anime API 21",
-    version: "1.1.0",
+    version: "1.1.1",
     status: "ok",
     database: "json",
     metadataSource: TARGET_SITE_URL,
-    automaticSync: true,
+    automaticSync: !Boolean(process.env.VERCEL),
     endpoints: {
       health: "/api/health",
       catalog: "/api/catalog?page=1&limit=20&search=naruto",
@@ -40,35 +46,17 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/api/cron/sync", async (req, res) => {
-  const cronSecret = process.env.CRON_SECRET;
-  const authorization = req.get("authorization") || "";
-  const expected = cronSecret ? "Bearer " + cronSecret : "";
-
-  if (!cronSecret || authorization !== expected) {
-    return res.status(401).json({ error: "Unauthorized cron request" });
-  }
-
+app.get("/api/health", (req, res, next) => {
   try {
-    const { runRemoteSync } = require("./src/adminSync");
-    const result = await runRemoteSync();
-    return res.json(result);
-  } catch (error) {
-    console.error("Cron metadata sync failed:", error.message);
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-app.get("/api/health", async (req, res, next) => {
-  try {
-    const db = await readDatabase();
+    const db = readDatabase();
     const sync = getSyncState();
 
     res.json({
       status: "ok",
       database: "json",
       metadataSource: TARGET_SITE_URL,
-      automaticSync: Boolean(process.env.METADATA_FEED_URL),
+      automaticSync: !Boolean(process.env.VERCEL) &&
+        Boolean(process.env.METADATA_FEED_URL),
       sync,
       counts: {
         anime: db.anime.length,
@@ -82,14 +70,15 @@ app.get("/api/health", async (req, res, next) => {
   }
 });
 
-
 app.get("/api/hls-proxy", async (req, res) => {
   try {
     const target = String(req.query.url || "");
     if (!target) return res.status(400).send("Missing url");
 
     const targetUrl = new URL(target);
-    const allowedHosts = String(process.env.AUTHORIZED_VIDEO_HOSTS || "")
+    const allowedHosts = String(
+      process.env.AUTHORIZED_VIDEO_HOSTS || ""
+    )
       .split(",")
       .map((host) => host.trim().toLowerCase())
       .filter(Boolean);
@@ -109,7 +98,10 @@ app.get("/api/hls-proxy", async (req, res) => {
       return res.status(response.status).send(await response.text());
     }
 
-    const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+    const contentType = String(
+      response.headers.get("content-type") || ""
+    ).toLowerCase();
+
     const isPlaylist =
       targetUrl.pathname.toLowerCase().endsWith(".m3u8") ||
       contentType.includes("mpegurl");
@@ -119,38 +111,68 @@ app.get("/api/hls-proxy", async (req, res) => {
 
     if (isPlaylist) {
       const playlist = await response.text();
-      const proxyUrl = (url) => "/api/hls-proxy?url=" + encodeURIComponent(url);
+      const proxyUrl = (url) =>
+        "/api/hls-proxy?url=" +
+        encodeURIComponent(url);
 
-      const rewritten = playlist.split(/\r?\n/).map((line) => {
-        const trimmed = line.trim();
-        if (!trimmed) return line;
+      const rewritten = playlist
+        .split(/\r?\n/)
+        .map((line) => {
+          const trimmed = line.trim();
+          if (!trimmed) return line;
 
-        if (trimmed.startsWith("#")) {
-          return line.replace(/URI="([^"]+)"/g, (match, uri) => {
-            try {
-              return 'URI="' + proxyUrl(new URL(uri, targetUrl).toString()) + '"';
-            } catch {
-              return match;
-            }
-          });
-        }
+          if (trimmed.startsWith("#")) {
+            return line.replace(
+              /URI="([^"]+)"/g,
+              (match, uri) => {
+                try {
+                  return (
+                    'URI="' +
+                    proxyUrl(
+                      new URL(uri, targetUrl).toString()
+                    ) +
+                    '"'
+                  );
+                } catch {
+                  return match;
+                }
+              }
+            );
+          }
 
-        try {
-          return proxyUrl(new URL(trimmed, targetUrl).toString());
-        } catch {
-          return line;
-        }
-      }).join("\n");
+          try {
+            return proxyUrl(
+              new URL(trimmed, targetUrl).toString()
+            );
+          } catch {
+            return line;
+          }
+        })
+        .join("\n");
 
-      res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.apple.mpegurl"
+      );
+
       return res.send(rewritten);
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    res.setHeader("Content-Type", response.headers.get("content-type") || "application/octet-stream");
+
+    res.setHeader(
+      "Content-Type",
+      response.headers.get("content-type") ||
+        "application/octet-stream"
+    );
+
     return res.send(buffer);
   } catch (error) {
-    console.error("Authorized HLS proxy error:", error.message);
+    console.error(
+      "Authorized HLS proxy error:",
+      error.message
+    );
+
     return res.status(502).send("HLS proxy error");
   }
 });
@@ -159,7 +181,9 @@ app.use("/api", animeRoutes);
 app.use("/api", movieRoutes);
 app.use("/api/admin", adminRoutes);
 
-app.use((req, res) => res.status(404).json({ error: "Route not found" }));
+app.use((req, res) =>
+  res.status(404).json({ error: "Route not found" })
+);
 
 app.use((error, req, res, next) => {
   console.error(error);
