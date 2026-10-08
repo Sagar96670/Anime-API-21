@@ -50,7 +50,7 @@ async function syncCatalog(payload) {
           : []
       };
       const status = upsertById(db.anime, normalized);
-      syncedAnimeIds.add(normalized.id);
+      if (normalized.sourceSyncComplete) syncedAnimeIds.add(normalized.id);
       result.anime[status]++;
     }
 
