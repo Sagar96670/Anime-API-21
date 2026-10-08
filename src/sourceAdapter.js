@@ -161,6 +161,30 @@ function extractSeasonNumbers(html) {
   return [...seasons].sort((a, b) => a - b);
 }
 
+function extractCatalogPageUrls(html, base) {
+  const urls = new Set();
+  const regex = /<a[^>]+href=["']([^"']+)["'][^>]*>/gi;
+  let match;
+
+  while ((match = regex.exec(html))) {
+    const url = absoluteUrl(base, match[1]);
+    if (!url) continue;
+
+    try {
+      const parsed = new URL(url);
+      const basePath = new URL(base + "/anime/").pathname;
+      const path = parsed.pathname.replace(/\/+$/, "");
+      const matchPage = path.match(/\/anime\/page\/(\d+)$/i);
+
+      if (path === basePath.replace(/\/+$/, "") || matchPage) {
+        urls.add(url.replace(/\/+$/, "") + "/");
+      }
+    } catch {}
+  }
+
+  return [...urls];
+}
+
 function extractEpisodes(html, anime, season) {
   // DesiDubAnime currently renders episode items with several different
   // WordPress/theme layouts. Prefer episode-numbered URLs/text, and do not
@@ -245,24 +269,69 @@ async function scrapeAnimePage(anime) {
 
 async function scrapeDesiDubAnime(baseUrl) {
   const base = baseUrl.replace(/\/$/, "");
-  const maxPages = Math.min(Math.max(Number(process.env.SOURCE_MAX_PAGES) || 20, 1), 20);
+  const maxPages = Math.min(Math.max(Number(process.env.SOURCE_MAX_PAGES) || 100, 1), 100);
   const concurrency = Math.min(Math.max(Number(process.env.SYNC_CONCURRENCY) || 4, 1), 8);
   const anime = [];
   const seen = new Set();
 
-  for (let page = 1; page <= maxPages; page++) {
-    const url = page === 1 ? base + "/anime/" : base + "/anime/page/" + page + "/";
-    try {
-      const html = await fetchText(url);
-      for (const item of extractAnimeCards(html, base)) {
+  const catalogPages = new Map([[1, base + "/anime/"]]);
+
+  try {
+    const firstHtml = await fetchText(base + "/anime/");
+    for (const item of extractAnimeCards(firstHtml, base)) {
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        anime.push(item);
+      }
+    }
+
+    for (const url of extractCatalogPageUrls(firstHtml, base)) {
+      const match = url.match(/\/anime\/page\/(\d+)\/?$/i);
+      const page = match ? Number(match[1]) : 1;
+      if (page >= 1 && page <= maxPages) catalogPages.set(page, url);
+    }
+  } catch (error) {
+    console.error("Failed to fetch catalog page 1:", error.message);
+  }
+
+  // Discover the remaining numbered pages in parallel. The site currently
+  // exposes a finite pagination range; stop naturally when a page is empty.
+  const pageNumbers = [];
+  for (let page = 2; page <= maxPages; page++) pageNumbers.push(page);
+
+  for (let i = 0; i < pageNumbers.length; i += concurrency) {
+    const batch = pageNumbers.slice(i, i + concurrency);
+    const results = await Promise.all(batch.map(async (page) => {
+      const url = catalogPages.get(page) || base + "/anime/page/" + page + "/";
+      try {
+        return { page, html: await fetchText(url) };
+      } catch (error) {
+        console.error("Skipping catalog page", page, error.message);
+        return null;
+      }
+    }));
+
+    let emptyPages = 0;
+
+    for (const result of results) {
+      if (!result) continue;
+
+      const items = extractAnimeCards(result.html, base);
+      if (!items.length) {
+        emptyPages++;
+        continue;
+      }
+
+      for (const item of items) {
         if (!seen.has(item.id)) {
           seen.add(item.id);
           anime.push(item);
         }
       }
-    } catch (error) {
-      console.error("Skipping catalog page", page, error.message);
     }
+
+    // Once a full batch is empty, later numbered pages are not useful.
+    if (emptyPages === batch.length) break;
   }
 
   const enrichedAnime = [];
