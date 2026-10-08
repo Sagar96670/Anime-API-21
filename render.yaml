@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: anime-api-21
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    disk:
+      name: anime-api-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: METADATA_FEED_URL
+        value: https://www.desidubanime.me
+      - key: SOURCE_MAX_PAGES
+        value: "20"
+      - key: SYNC_CONCURRENCY
+        value: "4"
+      - key: SYNC_INTERVAL_MINUTES
+        value: "60"
+      - key: ADMIN_API_KEY
+        generateValue: true
