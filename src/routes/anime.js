@@ -1,5 +1,6 @@
 const express = require("express");
 const { readDatabase } = require("../database");
+const { ensureDataReady } = require("../dataReady");
 
 const router = express.Router();
 async function fetchEpisodeIframeSrc(sourceUrl) {
@@ -28,7 +29,7 @@ async function fetchEpisodeIframeSrc(sourceUrl) {
 
 router.get("/catalog", async (req, res, next) => {
   try {
-    const db = await readDatabase();
+    const db = await ensureDataReady();
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
     const search = String(req.query.search || "").trim().toLowerCase();
@@ -44,7 +45,7 @@ router.get("/catalog", async (req, res, next) => {
 
 router.get("/anime/:id", async (req, res, next) => {
   try {
-    const db = await readDatabase();
+    const db = await ensureDataReady();
     const anime = db.anime.find((item) => item.id === req.params.id || item.slug === req.params.id);
     if (!anime) return res.status(404).json({ error: "Anime not found" });
     const episodes = db.episodes.filter((episode) => episode.animeId === anime.id);
