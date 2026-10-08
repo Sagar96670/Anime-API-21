@@ -143,18 +143,24 @@ async function scrapeAnimePage(anime) {
   const seasonLinks = extractSeasonLinks(html, anime.sourceUrl);
   const seasons = seasonLinks.length ? seasonLinks : [{ season: 1, url: anime.sourceUrl }];
   const episodes = [];
+  let allSeasonsFetched = true;
 
   for (const seasonInfo of seasons) {
     try {
       const seasonHtml = seasonInfo.url === anime.sourceUrl ? html : await fetchText(seasonInfo.url);
       episodes.push(...extractEpisodes(seasonHtml, anime, seasonInfo.season));
     } catch (error) {
+      allSeasonsFetched = false;
       console.error("Skipping season", seasonInfo.season, "for", anime.sourceUrl, error.message);
     }
   }
 
   return {
-    anime: { ...anime, seasons: seasons.map((item) => item.season) },
+    anime: {
+      ...anime,
+      seasons: seasons.map((item) => item.season),
+      sourceSyncComplete: allSeasonsFetched
+    },
     episodes
   };
 }
@@ -193,7 +199,7 @@ async function scrapeDesiDubAnime(baseUrl) {
 
     for (const result of results) {
       if (!result) continue;
-      enrichedAnime.push({ ...result.anime, sourceSyncComplete: true });
+      enrichedAnime.push(result.anime);
       episodes.push(...result.episodes);
     }
   }
