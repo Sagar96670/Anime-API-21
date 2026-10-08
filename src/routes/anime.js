@@ -3,7 +3,7 @@ const { readDatabase } = require("../database");
 
 const router = express.Router();
 async function fetchEpisodeIframeSrc(sourceUrl) {
-  if (!sourceUrl || !/^https?:\\/\\//i.test(sourceUrl)) return null;
+  if (!sourceUrl || !/^https?:\/\//i.test(sourceUrl)) return null;
 
   const response = await fetch(sourceUrl, {
     headers: {
@@ -15,7 +15,7 @@ async function fetchEpisodeIframeSrc(sourceUrl) {
 
   if (!response.ok) return null;
   const html = await response.text();
-  const match = html.match(/<iframe\\b[^>]*\\bsrc=["']([^"']+)["'][^>]*>/i);
+  const match = html.match(/<iframe\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/i);
   if (!match) return null;
 
   try {
