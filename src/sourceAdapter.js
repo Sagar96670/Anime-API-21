@@ -109,6 +109,21 @@ function extractSeasonLinks(html, base) {
   return seasons.sort((a, b) => a.season - b.season);
 }
 
+function extractSeasonNumbers(html) {
+  const seasons = new Set();
+  const regex = /\\bSeason\\s*(\\d+)\\b/gi;
+  let match;
+
+  while ((match = regex.exec(decodeHtml(html)))) {
+    const season = Number(match[1]);
+    if (Number.isInteger(season) && season >= 1 && season <= 100) {
+      seasons.add(season);
+    }
+  }
+
+  return [...seasons].sort((a, b) => a - b);
+}
+
 function extractEpisodes(html, anime, season) {
   const episodes = [];
   const seen = new Set();
@@ -145,9 +160,12 @@ function extractEpisodes(html, anime, season) {
 async function scrapeAnimePage(anime) {
   const html = await fetchText(anime.sourceUrl);
   const seasonLinks = extractSeasonLinks(html, anime.sourceUrl);
-  const seasons = seasonLinks.length ? seasonLinks : [{ season: 1, url: anime.sourceUrl }];
+  const seasonNumbers = extractSeasonNumbers(html);
+  const seasons = seasonLinks.length
+    ? seasonLinks
+    : [{ season: 1, url: anime.sourceUrl }];
   const episodes = [];
-  let allSeasonsFetched = true;
+  let allSeasonsFetched = seasonLinks.length > 0 || seasonNumbers.length <= 1;
 
   for (const seasonInfo of seasons) {
     try {
@@ -162,7 +180,9 @@ async function scrapeAnimePage(anime) {
   return {
     anime: {
       ...anime,
-      seasons: seasons.map((item) => item.season),
+      seasons: seasonLinks.length
+        ? seasons.map((item) => item.season)
+        : (seasonNumbers.length ? seasonNumbers : [1]),
       sourceSyncComplete: allSeasonsFetched
     },
     episodes
