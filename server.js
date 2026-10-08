@@ -8,6 +8,11 @@ const { startAutomaticSync, stopAutomaticSync } = require("./src/adminSync");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
+const TARGET_SITE_URL = "https://www.desidubanime.me";
+
+if (!process.env.METADATA_FEED_URL) {
+  process.env.METADATA_FEED_URL = TARGET_SITE_URL;
+}
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
@@ -17,6 +22,7 @@ app.get("/", (req, res) => {
     name: "Anime API 21",
     version: "1.0.0",
     status: "ok",
+    metadataSource: TARGET_SITE_URL,
     endpoints: {
       health: "/api/health",
       catalog: "/api/catalog",
@@ -33,8 +39,19 @@ app.get("/", (req, res) => {
 app.get("/api/health", async (req, res, next) => {
   try {
     const db = await readDatabase();
-    res.json({ status: "ok", database: "json", anime: db.anime.length, episodes: db.episodes.length, movies: db.movies.length, updatedAt: db.updatedAt });
-  } catch (error) { next(error); }
+    res.json({
+      status: "ok",
+      database: "json",
+      metadataSource: TARGET_SITE_URL,
+      automaticSync: Boolean(process.env.METADATA_FEED_URL),
+      anime: db.anime.length,
+      episodes: db.episodes.length,
+      movies: db.movies.length,
+      updatedAt: db.updatedAt
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use("/api", animeRoutes);
@@ -49,6 +66,7 @@ app.use((error, req, res, next) => {
 
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log("Anime API running on port " + PORT);
+  console.log("Metadata source: " + TARGET_SITE_URL);
   startAutomaticSync();
 });
 
