@@ -111,7 +111,7 @@ function extractSeasonLinks(html, base) {
 
 function extractSeasonNumbers(html) {
   const seasons = new Set();
-  const regex = /\\bSeason\\s*(\\d+)\\b/gi;
+  const regex = /\bSeason\s*(\d+)\b/gi;
   let match;
 
   while ((match = regex.exec(decodeHtml(html)))) {
