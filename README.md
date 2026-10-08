@@ -2,64 +2,117 @@
 
 Lightweight anime catalog API built with Node.js + Express + JSON.
 
-## No MongoDB
+## Highlights
 
-The project uses `data/anime-db.json` as its database. No MongoDB or other database server is required.
+- No MongoDB or database server.
+- JSON file database at `data/anime-db.json`.
+- Public metadata sync from the configured source.
+- Desi Dub Anime adapter for title, poster, season list and episode metadata.
+- Automatic sync on startup plus a configurable interval.
+- Multi-season discovery instead of assuming every episode is Season 1.
+- Serialized JSON writes to avoid concurrent sync corruption.
+- Stale episodes are removed when a successfully synced source page no longer lists them.
+- CORS enabled for frontend/mobile clients.
+- Video `sources` remain empty unless you provide a public/authorized source.
+
+The target source currently used by default is urlDesi Dub Animehttps://www.desidubanime.me. Its public pages expose multiple season buttons and episode listings, which the adapter uses for metadata synchronization. citeturn2search0turn2search1
 
 ## Setup
 
-    npm install
-    npm start
+```bash
+npm install
+npm start
+```
 
 Development:
 
-    npm run dev
+```bash
+npm run dev
+```
 
-Server: http://localhost:3000
+Server: `http://localhost:3000`
 
 ## API
 
-- GET /api/health
-- GET /api/catalog?page=1&limit=20&search=naruto
-- GET /api/anime/:id
-- GET /api/anime/:id/seasons
-- GET /api/anime/:id/episodes?season=1
-- GET /api/anime/:id/episode/:season/:episode
-- GET /api/movies?page=1&limit=20&search=...
-- GET /api/movie/:id
+- `GET /api/health`
+- `GET /api/catalog?page=1&limit=20&search=naruto`
+- `GET /api/anime/:id`
+- `GET /api/anime/:id/seasons`
+- `GET /api/anime/:id/episodes?season=1`
+- `GET /api/anime/:id/episode/:season/:episode`
+- `GET /api/movies?page=1&limit=20&search=...`
+- `GET /api/movie/:id`
 
-## Sync
+## Automatic sync
 
-Local JSON:
+The server defaults to the Desi Dub Anime metadata source when `METADATA_FEED_URL` is not set.
 
-    npm run sync -- data/example-catalog.json
+On startup:
 
-Remote metadata feed:
+1. The API starts immediately.
+2. A metadata sync begins in the background.
+3. The sync repeats every `SYNC_INTERVAL_MINUTES`.
+4. A running sync cannot overlap with another sync.
+5. The JSON database is updated atomically.
 
-    npm run sync:url -- https://your-authorized-source.example/catalog.json
+Defaults:
 
-Automatic live sync:
+```env
+METADATA_FEED_URL=https://www.desidubanime.me
+SOURCE_MAX_PAGES=5
+SYNC_CONCURRENCY=4
+SYNC_INTERVAL_MINUTES=60
+```
 
-When `METADATA_FEED_URL` is configured, `npm start` starts the API and the automatic metadata sync together. The first sync runs when the server starts, then repeats every `SYNC_INTERVAL_MINUTES` (minimum 5 minutes, default 60). No manual sync is required for normal operation.
+`SOURCE_MAX_PAGES` is capped at 20 and `SYNC_CONCURRENCY` is capped at 8.
 
-The built-in Desi Dub Anime adapter can read public catalog/anime pages for metadata. Set `METADATA_FEED_URL=https://www.desidubanime.me` to use it. `SOURCE_MAX_PAGES` controls the number of catalog pages checked per sync (default 5).
+## Season handling
 
-The remote JSON feed format is used for other authorized metadata sources and must return JSON shaped as:
+For each anime page, the adapter looks for public `Season N` links. When those links are available, it fetches each season page and stores episodes using stable IDs such as:
 
-    {
-      "anime": [],
-      "episodes": [],
-      "movies": []
-    }
+```text
+anime-slug-s1-e1
+anime-slug-s2-e1
+anime-slug-s3-e1
+```
 
-Records are upserted by ID, so rerunning a feed updates existing records instead of creating duplicates.
+If no season links are found, the page safely falls back to Season 1.
+
+## Sync consistency
+
+Each successful source page is marked internally as source-sync-complete. Only those successfully synchronized anime records participate in stale-episode cleanup. If a source request fails, the existing local episode data is preserved rather than being wiped accidentally.
+
+JSON mutations are serialized and written through a temporary file followed by an atomic rename.
+
+## Local JSON feed
+
+```bash
+npm run sync -- data/example-catalog.json
+```
+
+## Remote JSON feed
+
+```bash
+npm run sync:url -- https://your-authorized-source.example/catalog.json
+```
+
+Remote JSON feeds must return:
+
+```json
+{
+  "anime": [],
+  "episodes": [],
+  "movies": []
+}
+```
+
+Records are upserted by ID.
 
 ## Source policy
 
-The source adapter is for public or authorized metadata. The Desi Dub Anime adapter collects public anime metadata such as title, poster and episode listings. It does not extract hidden/protected video streams, bypass access controls, or resolve third-party player internals. Video `sources` remain empty unless you provide an authorized/public source.
+The adapter is for public or authorized metadata. It collects metadata such as title, poster, season and episode listings. It does not bypass access controls or extract hidden/protected third-party video streams or player internals.
 
-Video `sources` can be populated separately when the source is authorized for use.
-
+If you have a public or authorized video provider, its URLs can be stored in episode `sources`.
 
 ## Admin sync
 
@@ -67,10 +120,16 @@ Set `ADMIN_API_KEY` to a long random secret.
 
 Manual sync:
 
-    curl -X POST http://localhost:3000/api/admin/sync -H "x-api-key: YOUR_SECRET"
+```bash
+curl -X POST http://localhost:3000/api/admin/sync \
+  -H "x-api-key: YOUR_SECRET"
+```
 
-Sync status:
+Status:
 
-    curl http://localhost:3000/api/admin/sync/status -H "x-api-key: YOUR_SECRET"
+```bash
+curl http://localhost:3000/api/admin/sync/status \
+  -H "x-api-key: YOUR_SECRET"
+```
 
-Both endpoints are protected by the API key and return 401 without the correct key.
+Both endpoints require the configured API key.
