@@ -28,14 +28,28 @@ Server: http://localhost:3000
 - GET /api/movies?page=1&limit=20&search=...
 - GET /api/movie/:id
 
-## Data
-
-Anime records live in `data/anime-db.json`. Episodes are stored separately and linked with `animeId`.
-
-Video `sources` are intentionally empty until an authorized/public video source is configured.
-
 ## Sync
 
-The data layer is separated from the API so a future sync job can upsert anime, episodes and movies into the JSON file without changing the API routes.
+Local JSON:
 
-Do not use this project to bypass access controls or extract protected/hidden video streams from third-party services.
+    npm run sync -- data/example-catalog.json
+
+Remote metadata feed:
+
+    npm run sync:url -- https://your-authorized-source.example/catalog.json
+
+The remote feed must return JSON shaped as:
+
+    {
+      "anime": [],
+      "episodes": [],
+      "movies": []
+    }
+
+Records are upserted by ID, so rerunning a feed updates existing records instead of creating duplicates.
+
+## Source policy
+
+The source adapter is for public or authorized metadata feeds. It does not extract hidden/protected video streams, bypass access controls, or resolve third-party player internals.
+
+Video `sources` can be populated separately when the source is authorized for use.
