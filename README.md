@@ -44,6 +44,7 @@ Server: `http://localhost:3000`
 - `GET /api/hls-proxy?url=...` (authorized hosts only)
 - `GET /api/movies?page=1&limit=20&search=...`
 - `GET /api/movie/:id`
+- `GET /episode.html?id=:animeId&season=:season&episode=:episode` (existing HLS.js player)
 
 ## Automatic sync
 
@@ -135,3 +136,7 @@ curl http://localhost:3000/api/admin/sync/status \
 ```
 
 Both endpoints require the configured API key.
+
+## Existing player
+
+The original custom episode player is preserved at `public/episode.html` and is served by Express. It calls the new episode and stream endpoints directly. HLS playback uses the authorized `/api/hls-proxy` only when the stream response declares `hls: true`; direct authorized MP4 sources are loaded directly. The player uses real HLS quality and audio tracks from the manifest and does not invent options.
