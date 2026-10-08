@@ -4,6 +4,7 @@ const { readDatabase } = require("./src/database");
 const animeRoutes = require("./src/routes/anime");
 const movieRoutes = require("./src/routes/movies");
 const adminRoutes = require("./src/routes/admin");
+const { startAutomaticSync, stopAutomaticSync } = require("./src/adminSync");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -46,4 +47,16 @@ app.use((error, req, res, next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
-app.listen(PORT, () => console.log("Anime API running on http://localhost:" + PORT));
+const server = app.listen(PORT, "0.0.0.0", () => {
+  console.log("Anime API running on port " + PORT);
+  startAutomaticSync();
+});
+
+function shutdown(signal) {
+  console.log(signal + " received. Shutting down...");
+  stopAutomaticSync();
+  server.close(() => process.exit(0));
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
