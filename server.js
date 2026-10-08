@@ -40,6 +40,25 @@ app.get("/", (req, res) => {
   });
 });
 
+app.get("/api/cron/sync", async (req, res) => {
+  const cronSecret = process.env.CRON_SECRET;
+  const authorization = req.get("authorization") || "";
+  const expected = cronSecret ? "Bearer " + cronSecret : "";
+
+  if (!cronSecret || authorization !== expected) {
+    return res.status(401).json({ error: "Unauthorized cron request" });
+  }
+
+  try {
+    const { runRemoteSync } = require("./src/adminSync");
+    const result = await runRemoteSync();
+    return res.json(result);
+  } catch (error) {
+    console.error("Cron metadata sync failed:", error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 app.get("/api/health", async (req, res, next) => {
   try {
     const db = await readDatabase();
