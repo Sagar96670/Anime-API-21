@@ -8,7 +8,7 @@ const { getSyncState, startAutomaticSync, stopAutomaticSync } = require("./src/a
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
-const TARGET_SITE_URL = "https://www.desidubanime.me";
+const TARGET_SITE_URL = process.env.METADATA_FEED_URL || "https://www.desidubanime.me";
 
 if (!process.env.METADATA_FEED_URL) {
   process.env.METADATA_FEED_URL = TARGET_SITE_URL;
