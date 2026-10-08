@@ -67,13 +67,18 @@ async function syncCatalog(payload) {
 
     for (const item of episodes) {
       if (!item.id || !item.animeId) continue;
+      const existing = db.episodes.find((current) => current.id === normalize(item.id));
+      const incomingSources = Array.isArray(item.sources) ? item.sources : [];
       const normalized = {
+        ...(existing || {}),
         ...item,
         id: normalize(item.id),
         animeId: normalize(item.animeId),
         season: Number(item.season),
         episode: Number(item.episode),
-        sources: Array.isArray(item.sources) ? item.sources : []
+        sources: incomingSources.length
+          ? incomingSources
+          : (Array.isArray(existing?.sources) ? existing.sources : [])
       };
       const status = upsertById(db.episodes, normalized);
       result.episodes[status]++;
