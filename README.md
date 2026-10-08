@@ -53,3 +53,18 @@ Records are upserted by ID, so rerunning a feed updates existing records instead
 The source adapter is for public or authorized metadata feeds. It does not extract hidden/protected video streams, bypass access controls, or resolve third-party player internals.
 
 Video `sources` can be populated separately when the source is authorized for use.
+
+
+## Admin sync
+
+Set `ADMIN_API_KEY` to a long random secret.
+
+Manual sync:
+
+    curl -X POST http://localhost:3000/api/admin/sync -H "x-api-key: YOUR_SECRET"
+
+Sync status:
+
+    curl http://localhost:3000/api/admin/sync/status -H "x-api-key: YOUR_SECRET"
+
+Both endpoints are protected by the API key and return 401 without the correct key.
