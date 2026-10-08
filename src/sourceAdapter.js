@@ -109,6 +109,43 @@ function extractSeasonLinks(html, base) {
   return seasons.sort((a, b) => a.season - b.season);
 }
 
+function extractWatchEpisodes(html, anime, season) {
+  const episodes = [];
+  const seen = new Set();
+  const regex = /<a[^>]+href=["']([^"']*\/watch\/[^"']+)["'][^>]*>/gi;
+  let match;
+
+  while ((match = regex.exec(html))) {
+    const hrefValue = String(match[1] || "");
+    const episodeMatch =
+      hrefValue.match(/(?:episode|ep)[-_]?(\d+)(?:\D|$)/i) ||
+      hrefValue.match(/(?:^|[-_/])e(?:pisode)?[-_]?0*(\d+)(?:[-_/]|$)/i);
+
+    if (!episodeMatch) continue;
+
+    const episode = Number(episodeMatch[1]);
+    if (!Number.isInteger(episode) || episode < 1) continue;
+
+    const url = absoluteUrl(anime.sourceUrl, hrefValue);
+    const key = anime.id + "-s" + season + "-e" + episode;
+
+    if (!url || seen.has(key)) continue;
+
+    seen.add(key);
+    episodes.push({
+      id: key,
+      animeId: anime.id,
+      season,
+      episode,
+      title: "Episode " + episode,
+      sourceUrl: url,
+      sources: []
+    });
+  }
+
+  return episodes.sort((a, b) => a.episode - b.episode);
+}
+
 function extractSeasonNumbers(html) {
   const seasons = new Set();
   const regex = /\bSeason\s*(\d+)\b/gi;
@@ -135,10 +172,12 @@ function extractEpisodes(html, anime, season) {
 
   while ((match = regex.exec(html))) {
     const anchorText = decodeHtml(match[2]);
+    const hrefValue = String(match[1] || "");
     const episodeMatch =
       anchorText.match(/\bEpisode\s*(\d+)\b/i) ||
       anchorText.match(/\bEp(?:isode)?\.?\s*(\d+)\b/i) ||
-      match[1].match(/(?:episode|ep)[-_/]?(\d+)(?:\D|$)/i);
+      hrefValue.match(/(?:episode|ep)[-_/]?(\d+)(?:\D|$)/i) ||
+      hrefValue.match(/(?:^|[-_/])e(?:pisode)?[-_]?0*(\d+)(?:[-_/]|$)/i);
 
     if (!episodeMatch) continue;
 
@@ -179,7 +218,13 @@ async function scrapeAnimePage(anime) {
   for (const seasonInfo of seasons) {
     try {
       const seasonHtml = seasonInfo.url === anime.sourceUrl ? html : await fetchText(seasonInfo.url);
-      episodes.push(...extractEpisodes(seasonHtml, anime, seasonInfo.season));
+      const extracted = extractEpisodes(seasonHtml, anime, seasonInfo.season);
+      const watchEpisodes = extractWatchEpisodes(seasonHtml, anime, seasonInfo.season);
+      const merged = new Map(extracted.map((item) => [item.id, item]));
+      for (const item of watchEpisodes) {
+        merged.set(item.id, { ...(merged.get(item.id) || {}), ...item });
+      }
+      episodes.push(...merged.values());
     } catch (error) {
       allSeasonsFetched = false;
       console.error("Skipping season", seasonInfo.season, "for", anime.sourceUrl, error.message);
@@ -237,7 +282,19 @@ async function scrapeDesiDubAnime(baseUrl) {
     }
   }
 
-  return { anime: enrichedAnime, episodes, movies: [] };
+  let movies = [];
+  try {
+    const movieHtml = await fetchText(base + "/anime-type/movie/");
+    const movieItems = extractAnimeCards(movieHtml, base);
+    movies = movieItems.map((item) => ({
+      ...item,
+      type: "movie"
+    }));
+  } catch (error) {
+    console.error("Skipping movie catalog:", error.message);
+  }
+
+  return { anime: enrichedAnime, episodes, movies };
 }
 
 async function fetchCatalogFromUrl(url) {
