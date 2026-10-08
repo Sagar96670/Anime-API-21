@@ -15,7 +15,7 @@ Lightweight anime catalog API built with Node.js + Express + JSON.
 - CORS enabled for frontend/mobile clients.
 - Video `sources` remain empty unless you provide a public/authorized source.
 
-The target source currently used by default is urlDesi Dub Animehttps://www.desidubanime.me. Its public pages expose multiple season buttons and episode listings, which the adapter uses for metadata synchronization. citeturn2search0turn2search1
+The target source currently used by default is [Desi Dub Anime](https://www.desidubanime.me). Its public pages expose multiple season buttons and episode listings, which the adapter uses for metadata synchronization.
 
 ## Setup
 
