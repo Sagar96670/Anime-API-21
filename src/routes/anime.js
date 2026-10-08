@@ -145,7 +145,7 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
         if (!source || typeof source !== "object") return [];
         return [source.video_url, source.videoUrl, source.stream_url, source.streamUrl, source.url];
       })
-    ].find((value) => typeof value === "string" && /^https?:\\/\\//i.test(value));
+    ].find((value) => typeof value === "string" && /^https?:\/\//i.test(value));
 
     // If no stored direct source exists, fetch only the public episode HTML
     // and extract its iframe src. No player/hash resolution is performed.
