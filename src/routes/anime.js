@@ -69,13 +69,26 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
     const db = await readDatabase();
     const anime = db.anime.find((item) => item.id === req.params.id || item.slug === req.params.id);
 
-    if (!anime) return res.status(404).json({ status: false, message: "Anime not found" });
+    if (!anime) {
+      return res.status(404).json({
+        status: false,
+        message: "Anime not found"
+      });
+    }
 
     const season = Number(req.params.season);
     const episodeNumber = Number(req.params.episode);
 
-    if (!Number.isInteger(season) || season < 1 || !Number.isInteger(episodeNumber) || episodeNumber < 1) {
-      return res.status(400).json({ status: false, message: "Invalid season or episode number" });
+    if (
+      !Number.isInteger(season) ||
+      season < 1 ||
+      !Number.isInteger(episodeNumber) ||
+      episodeNumber < 1
+    ) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid season or episode number"
+      });
     }
 
     const episode = db.episodes.find((item) =>
@@ -84,25 +97,39 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
       Number(item.episode) === episodeNumber
     );
 
-    if (!episode) return res.status(404).json({ status: false, message: "Episode not found" });
+    if (!episode) {
+      return res.status(404).json({
+        status: false,
+        message: "Episode not found"
+      });
+    }
 
+    // Video section: only use a direct/authorized source already stored in the JSON DB.
+    // No hidden player/hash extraction is performed here.
     const sources = Array.isArray(episode.sources) ? episode.sources : [];
-    const directSource =
-      episode.video_url ||
-      episode.videoUrl ||
-      sources.find((source) => source && typeof source === "object" && source.video_url)?.video_url ||
-      sources.find((source) => source && typeof source === "object" && source.url)?.url ||
-      sources.find((source) => typeof source === "string");
+    const candidates = [
+      episode.video_url,
+      episode.videoUrl,
+      episode.stream_url,
+      episode.streamUrl,
+      ...sources.flatMap((source) => {
+        if (typeof source === "string") return [source];
+        if (!source || typeof source !== "object") return [];
+        return [source.video_url, source.videoUrl, source.stream_url, source.streamUrl, source.url];
+      })
+    ].filter((value) => typeof value === "string" && /^https?:\\/\\//i.test(value));
 
-    if (!directSource || !/^https?:\/\//i.test(String(directSource))) {
+    const videoUrl = candidates[0];
+
+    if (!videoUrl) {
       return res.status(404).json({
         status: false,
         message: "No authorized video source is configured for this episode"
       });
     }
 
-    const videoUrl = String(directSource);
-    const hls = /\.m3u8(?:$|[?#])/i.test(videoUrl);
+    const hls = /\\.m3u8(?:$|[?#])/i.test(videoUrl);
+    const poster = episode.videoImage || episode.poster || anime.poster || null;
 
     return res.json({
       status: true,
@@ -112,7 +139,8 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
       title: episode.title || ("Episode " + episodeNumber),
       hls,
       video_url: videoUrl,
-      poster: episode.poster || anime.poster || null,
+      poster,
+      secured_link: episode.secured_link || episode.securedLink || null,
       sources: {
         video: true,
         audio: hls
@@ -122,7 +150,6 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
     next(error);
   }
 });
-
 router.get("/anime/:id/episode/:season/:episode", async (req, res, next) => {
   try {
     const db = await readDatabase();
