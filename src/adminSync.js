@@ -17,11 +17,17 @@ function getSyncState() {
 
 async function runRemoteSync() {
   if (state.running) {
-    return { started: false, reason: "sync_already_running", state: getSyncState() };
+    return {
+      started: false,
+      reason: "sync_already_running",
+      state: getSyncState()
+    };
   }
 
   const url = process.env.METADATA_FEED_URL;
-  if (!url) throw new Error("METADATA_FEED_URL is not configured");
+  if (!url) {
+    throw new Error("METADATA_FEED_URL is not configured");
+  }
 
   state.running = true;
   state.lastStartedAt = new Date().toISOString();
@@ -42,25 +48,43 @@ async function runRemoteSync() {
 }
 
 function startAutomaticSync() {
-  // Vercel uses Cron Jobs instead of a long-lived setInterval timer.
+  // Vercel follows the old API architecture: the JSON database is bundled
+  // with the deployment, so a long-running runtime timer is not started there.
   if (process.env.VERCEL || timer || !process.env.METADATA_FEED_URL) {
     return false;
   }
 
-  const intervalMinutes = Math.max(Number(process.env.SYNC_INTERVAL_MINUTES) || 60, 5);
+  const intervalMinutes = Math.max(
+    Number(process.env.SYNC_INTERVAL_MINUTES) || 60,
+    5
+  );
+
   const intervalMs = intervalMinutes * 60 * 1000;
 
   runRemoteSync().catch((error) => {
-    console.error(new Date().toISOString(), "Initial metadata sync failed:", error.message);
+    console.error(
+      new Date().toISOString(),
+      "Initial metadata sync failed:",
+      error.message
+    );
   });
 
   timer = setInterval(() => {
     runRemoteSync().catch((error) => {
-      console.error(new Date().toISOString(), "Scheduled metadata sync failed:", error.message);
+      console.error(
+        new Date().toISOString(),
+        "Scheduled metadata sync failed:",
+        error.message
+      );
     });
   }, intervalMs);
 
-  console.log("Automatic metadata sync enabled every " + intervalMinutes + " minutes.");
+  console.log(
+    "Automatic metadata sync enabled every " +
+      intervalMinutes +
+      " minutes."
+  );
+
   return true;
 }
 
@@ -71,4 +95,9 @@ function stopAutomaticSync() {
   }
 }
 
-module.exports = { getSyncState, runRemoteSync, startAutomaticSync, stopAutomaticSync };
+module.exports = {
+  getSyncState,
+  runRemoteSync,
+  startAutomaticSync,
+  stopAutomaticSync
+};
