@@ -42,7 +42,9 @@ Automatic live sync:
 
 When `METADATA_FEED_URL` is configured, `npm start` starts the API and the automatic metadata sync together. The first sync runs when the server starts, then repeats every `SYNC_INTERVAL_MINUTES` (minimum 5 minutes, default 60). No manual sync is required for normal operation.
 
-The remote feed must return JSON shaped as:
+The built-in Desi Dub Anime adapter can read public catalog/anime pages for metadata. Set `METADATA_FEED_URL=https://www.desidubanime.me` to use it. `SOURCE_MAX_PAGES` controls the number of catalog pages checked per sync (default 5).
+
+The remote JSON feed format is used for other authorized metadata sources and must return JSON shaped as:
 
     {
       "anime": [],
@@ -54,7 +56,7 @@ Records are upserted by ID, so rerunning a feed updates existing records instead
 
 ## Source policy
 
-The source adapter is for public or authorized metadata feeds. It does not extract hidden/protected video streams, bypass access controls, or resolve third-party player internals.
+The source adapter is for public or authorized metadata. The Desi Dub Anime adapter collects public anime metadata such as title, poster and episode listings. It does not extract hidden/protected video streams, bypass access controls, or resolve third-party player internals. Video `sources` remain empty unless you provide an authorized/public source.
 
 Video `sources` can be populated separately when the source is authorized for use.
 
