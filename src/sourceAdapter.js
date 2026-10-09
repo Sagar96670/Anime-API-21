@@ -113,9 +113,9 @@ function seriesSlugFromUrl(value, base) {
   try {
     let slug = slugFromUrl(new URL(value, base).pathname).toLowerCase();
     return slug
-      .replace(/-episode-\\d+(?:-\\d+)?$/i, "")
-      .replace(/-(?:season-)?\\d+(?:st|nd|rd|th)?-season$/i, "")
-      .replace(/-season-\\d+$/i, "")
+      .replace(/-episode-\d+(?:-\d+)?$/i, "")
+      .replace(/-(?:season-)?\d+(?:st|nd|rd|th)?-season$/i, "")
+      .replace(/-season-\d+$/i, "")
       .replace(/-(?:ova|ona|special)$/i, "");
   } catch {
     return "";
