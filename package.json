@@ -11,7 +11,7 @@
     "sync:url": "node scripts/sync-url.js",
     "sync:auto": "node scripts/auto-sync.js",
     "sync:file": "node scripts/sync-catalog.js",
-    "vercel-build": "npm run sync"
+    "vercel-build": "VERCEL_BUILD_SYNC=1 npm run sync"
   },
   "engines": {
     "node": ">=18"
