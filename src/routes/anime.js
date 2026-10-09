@@ -125,14 +125,47 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
       return res.status(400).json({ status: false, message: "Invalid season or episode number" });
     }
 
-    const episode = db.episodes.find((item) =>
+    let episode = db.episodes.find((item) =>
       item.animeId === anime.id &&
       Number(item.season) === season &&
       Number(item.episode) === episodeNumber
     );
 
+    // The deployed JSON catalog can be stale or incomplete. If an episode
+    // record is missing, try the canonical public DesiDubAnime watch URL
+    // derived from this series' own source URL before returning 404.
     if (!episode) {
-      return res.status(404).json({ status: false, message: "Episode not found" });
+      try {
+        const source = new URL(anime.sourceUrl);
+        if (/desidubanime\\.me$/i.test(source.hostname) && /^\\/watch\\//i.test(source.pathname)) {
+          const seriesSlug = source.pathname.split("/").filter(Boolean).pop()
+            .replace(/-episode-\\d+.*$/i, "")
+            .replace(/-season-\\d+.*$/i, "");
+          if (seriesSlug) {
+            const fallbackUrl = new URL("/watch/" + seriesSlug + "-episode-" + episodeNumber, source.origin).toString();
+            const iframeUrl = await fetchEpisodeIframeSrc(fallbackUrl);
+            if (iframeUrl) {
+              return res.json({
+                status: true,
+                anime_id: anime.id,
+                season,
+                episode: episodeNumber,
+                title: "Episode " + episodeNumber,
+                hls: /\\.m3u8(?:$|[?#])/i.test(iframeUrl),
+                stream_url: iframeUrl,
+                video_url: iframeUrl,
+                iframe_url: iframeUrl,
+                playback_mode: "iframe",
+                poster: anime.poster || null,
+                sources: { video: true, audio: false }
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Fallback episode lookup failed:", error.message);
+      }
+      return res.status(404).json({ status: false, message: "Episode not found in catalog and no public iframe was found" });
     }
 
     const sources = Array.isArray(episode.sources) ? episode.sources : [];
