@@ -93,12 +93,17 @@ function extractAnimeCards(html, base) {
 
     const pathname = parsed.pathname.replace(/\/+$/, "");
     const lowerPath = pathname.toLowerCase();
-    const id = slugFromUrl(pathname);
+    const rawId = slugFromUrl(pathname);
+    // The current source catalog links directly to /watch/<title>-episode-N/
+    // rather than /anime/<title>/. Normalize episode URLs to a series ID.
+    const id = lowerPath.startsWith("/watch/")
+      ? rawId.replace(/-(?:season-\d+-)?episode-\d+(?:-\d+)?$/i, "").replace(/-(?:season-\d+)-episode-\d+$/i, "")
+      : rawId;
     if (
       !pathname ||
       pathname === "/" ||
       lowerPath === "/anime" ||
-      /\/(page|anime-type|category|tag|author|genre|genres|search|watch|login|register|homepage|schedule|random|language|languages)(\/|$)/i.test(lowerPath) ||
+      /\/(page|anime-type|category|tag|author|genre|genres|search|login|register|homepage|schedule|random|language|languages)(\/|$)/i.test(lowerPath) ||
       /\.(?:jpg|jpeg|png|webp|gif|css|js|xml|pdf)$/i.test(lowerPath) ||
       /^(page|anime|movie|movies|all|latest|popular|completed|ongoing|home|login|register|search)$/i.test(id)
     ) continue;
@@ -118,7 +123,7 @@ function extractAnimeCards(html, base) {
       humanizeSlug(id)
     );
     const hasImage = /<img\b/i.test(nearby.slice(0, 1400));
-    const isAnimePath = /\/anime\/[^/]+/i.test(pathname);
+    const isAnimePath = /\/(?:anime|watch)\/[^/]+/i.test(pathname);
     if ((!hasImage && !isAnimePath) || !id || !title || title.length < 2) continue;
 
     const normalizedUrl = parsed.origin + pathname + parsed.search;
