@@ -13,6 +13,12 @@ async function main() {
 
   const catalog = await fetchCatalogFromUrl(url);
 
+  if (!Array.isArray(catalog.anime) || catalog.anime.length === 0) {
+    throw new Error(
+      "Metadata sync returned zero anime records. Build stopped to avoid deploying an empty catalogue."
+    );
+  }
+
   console.log(
     "Received " +
       catalog.anime.length + " anime, " +
