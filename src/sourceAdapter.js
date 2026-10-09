@@ -4,22 +4,43 @@ const http = require("http");
 const DEFAULT_SITE_URL = "https://www.desidubanime.me";
 const REQUEST_TIMEOUT_MS = 20000;
 
-function fetchText(url) {
+function fetchText(url, redirects = 0) {
   return new Promise((resolve, reject) => {
-    const client = url.startsWith("https://") ? https : http;
-    const request = client.get(url, {
+    if (redirects > 5) {
+      return reject(new Error("Too many redirects while fetching source"));
+    }
+
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      return reject(new Error("Invalid source URL"));
+    }
+
+    const client = parsedUrl.protocol === "https:" ? https : http;
+    const request = client.get(parsedUrl, {
       headers: {
         "User-Agent": "Anime-API-21/1.1 (+metadata sync)",
         "Accept": "text/html,application/xhtml+xml,application/json",
         "Accept-Language": "en-US,en;q=0.8"
       }
     }, (response) => {
+      const status = response.statusCode || 0;
+      if ([301, 302, 303, 307, 308].includes(status)) {
+        const location = response.headers.location;
+        response.resume();
+        if (!location) {
+          return reject(new Error("Source returned HTTP " + status + " without a redirect location"));
+        }
+        return resolve(fetchText(new URL(location, parsedUrl).href, redirects + 1));
+      }
+
       let body = "";
       response.setEncoding("utf8");
       response.on("data", (chunk) => { body += chunk; });
       response.on("end", () => {
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          return reject(new Error("Source returned HTTP " + response.statusCode));
+        if (status < 200 || status >= 300) {
+          return reject(new Error("Source returned HTTP " + status));
         }
         resolve(body);
       });
