@@ -67,6 +67,14 @@ function decodeHtml(value) {
     .trim();
 }
 
+function cleanAnimeTitle(value) {
+  return decodeHtml(value)
+    .replace(/\s*(?:[-|:–—]\s*)?(?:Episode|Ep\.?|E)\s*\d+(?:\s*[:.\-–—].*)?\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .replace(/[\s:|–—-]+$/, "")
+    .trim();
+}
+
 function extractPageTitle(html) {
   const source = String(html || "");
   const candidates = [];
@@ -88,7 +96,7 @@ function extractPageTitle(html) {
       .replace(/\s*[|–—-]\s*(?:DesiDubAnime|Desi Dub Anime).*$/i, "")
       .replace(/\s+/g, " ")
       .trim();
-    if (cleaned.length >= 5 && cleaned.length <= 300) return cleaned;
+    if (cleaned.length >= 5 && cleaned.length <= 300) return cleanAnimeTitle(cleaned);
   }
   return "";
 }
@@ -177,7 +185,7 @@ function extractAnimeCards(html, base) {
     results.push({
       id,
       slug: id,
-      title: title.length > 180 ? humanizeSlug(id) : title,
+      title: cleanAnimeTitle(title.length > 180 ? humanizeSlug(id) : title),
       poster: imageFromBlock(nearby.slice(0, Math.min(1600, nearby.length)), base),
       sourceUrl: normalizedUrl
     });
@@ -325,8 +333,11 @@ function extractEpisodes(html, anime, season) {
 async function scrapeAnimePage(anime) {
   const html = await fetchText(anime.sourceUrl);
   const pageTitle = extractPageTitle(html);
-  if (pageTitle && (!anime.title || anime.title.length > 160 || anime.title === decodeHtml(slugFromUrl(anime.sourceUrl).replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())))) {
+  const currentTitle = cleanAnimeTitle(anime.title);
+  if (pageTitle && (!currentTitle || anime.title.length > 160 || currentTitle === decodeHtml(slugFromUrl(anime.sourceUrl).replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())))) {
     anime = { ...anime, title: pageTitle };
+  } else if (currentTitle && currentTitle !== anime.title) {
+    anime = { ...anime, title: currentTitle };
   }
   const seasonLinks = extractSeasonLinks(html, anime.sourceUrl);
   // Only explicit season navigation links are evidence of multiple seasons.
