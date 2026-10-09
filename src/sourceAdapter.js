@@ -91,14 +91,14 @@ function extractAnimeCards(html, base) {
 
     const block = attributes + " " + inner;
     const readAttribute = (source, name) => {
-      const regex = /([\\w-]+)\\s*=\\s*(["\'])(.*?)\\2/gi;
+      const regex = /([\w-]+)\s*=\s*(["'])(.*?)\2/gi;
       let attribute;
       while ((attribute = regex.exec(source))) {
         if (attribute[1].toLowerCase() === name.toLowerCase()) return attribute[3];
       }
       return "";
     };
-    const imageTag = (inner.match(/<img\\b[^>]*>/i) || [])[0] || "";
+    const imageTag = (inner.match(/<img\b[^>]*>/i) || [])[0] || "";
     const title = decodeHtml(
       readAttribute(attributes, "title") ||
       readAttribute(attributes, "aria-label") ||
