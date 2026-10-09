@@ -109,6 +109,30 @@ function slugFromUrl(url) {
   return url.replace(/\/$/, "").split("/").pop() || "";
 }
 
+function seriesSlugFromUrl(value, base) {
+  try {
+    let slug = slugFromUrl(new URL(value, base).pathname).toLowerCase();
+    return slug
+      .replace(/-episode-\\d+(?:-\\d+)?$/i, "")
+      .replace(/-(?:season-)?\\d+(?:st|nd|rd|th)?-season$/i, "")
+      .replace(/-season-\\d+$/i, "")
+      .replace(/-(?:ova|ona|special)$/i, "");
+  } catch {
+    return "";
+  }
+}
+
+function isSameAnimeSeries(candidateUrl, sourceUrl) {
+  try {
+    const candidate = new URL(candidateUrl, sourceUrl);
+    const source = new URL(sourceUrl);
+    return candidate.hostname === source.hostname &&
+      seriesSlugFromUrl(candidate.href, source.href) === seriesSlugFromUrl(source.href, source.href);
+  } catch {
+    return false;
+  }
+}
+
 function imageFromBlock(block, base) {
   const match = block.match(/(?:data-src|data-lazy-src|data-original|src)=[\"']([^\"']+)[\"']/i);
   return match ? absoluteUrl(base, match[1]) : "";
@@ -273,6 +297,7 @@ function extractWatchEpisodes(html, anime, season) {
     if (!Number.isInteger(episode) || episode < 1) continue;
 
     const url = absoluteUrl(anime.sourceUrl, hrefValue);
+    if (!url || !isSameAnimeSeries(url, anime.sourceUrl)) continue;
     const key = anime.id + "-s" + season + "-e" + episode;
     if (!url || seen.has(key)) continue;
     seen.add(key);
@@ -331,7 +356,7 @@ function extractEpisodes(html, anime, season) {
     const episode = Number(episodeMatch[1]);
     if (!Number.isInteger(episode) || episode < 1) continue;
     const url = absoluteUrl(anime.sourceUrl, match[1]);
-    if (!url || url === anime.sourceUrl) continue;
+    if (!url || url === anime.sourceUrl || !isSameAnimeSeries(url, anime.sourceUrl)) continue;
     const key = anime.id + "-s" + season + "-e" + episode;
     if (seen.has(key)) continue;
     seen.add(key);
