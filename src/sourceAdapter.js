@@ -62,60 +62,69 @@ function imageFromBlock(block, base) {
 function extractAnimeCards(html, base) {
   const results = [];
   const seen = new Set();
-  // Read every anchor first, then inspect its attributes and nearby card markup.
-  // Some source themes put the title only in an image alt attribute rather than
-  // visible anchor text, which made the old parser silently discard all cards.
-  const linkRegex = /<a\b([^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*)>([\s\S]*?)<\/a\s*>/gi;
+  const source = String(html || "");
+  // Parse opening anchors independently so nested card markup does not break
+  // extraction when the closing anchor is not where a simple regex expects.
+  const anchorRegex = /<a\\b([^>]*)>/gi;
+  const readAttribute = (attributes, name) => {
+    const regex = /([\\w-]+)\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))/gi;
+    let attribute;
+    while ((attribute = regex.exec(String(attributes || "")))) {
+      if (attribute[1].toLowerCase() === name.toLowerCase()) {
+        return attribute[2] || attribute[3] || attribute[4] || "";
+      }
+    }
+    return "";
+  };
   let match;
 
-  while ((match = linkRegex.exec(String(html || "")))) {
+  while ((match = anchorRegex.exec(source))) {
     const attributes = match[1] || "";
-    const hrefValue = match[2] || "";
-    const inner = match[3] || "";
+    const hrefValue = readAttribute(attributes, "href");
     const href = absoluteUrl(base, hrefValue);
     if (!href) continue;
 
     let parsed;
     try { parsed = new URL(href); } catch { continue; }
-    const pathname = parsed.pathname.replace(/\/+$/, "");
+    if (parsed.hostname !== new URL(base).hostname) continue;
+
+    const pathname = parsed.pathname.replace(/\\/+$/, "");
+    const lowerPath = pathname.toLowerCase();
     if (
-      !/\/anime\/.+/i.test(pathname) ||
-      /\/anime\/page\/\d+$/i.test(pathname) ||
-      /\/anime-type\//i.test(pathname) ||
-      /\/anime\/?$/i.test(pathname) ||
-      /\/(tag|category|author)\//i.test(pathname)
+      !pathname ||
+      lowerPath === "/anime" ||
+      /\\/page\\/\\d+$/.test(lowerPath) ||
+      /\\/(anime-type|category|tag|author|genre|genres|search|watch|login|register|homepage|schedule|random)(\\/|$)/i.test(lowerPath) ||
+      /\\.(?:jpg|jpeg|png|webp|gif|css|js|xml|pdf)$/i.test(lowerPath)
     ) continue;
 
-    const normalizedUrl = parsed.origin + pathname + parsed.search;
-    if (seen.has(normalizedUrl)) continue;
-
-    const block = attributes + " " + inner;
-    const readAttribute = (source, name) => {
-      const regex = /([\w-]+)\s*=\s*(["'])(.*?)\2/gi;
-      let attribute;
-      while ((attribute = regex.exec(source))) {
-        if (attribute[1].toLowerCase() === name.toLowerCase()) return attribute[3];
-      }
-      return "";
-    };
-    const imageTag = (inner.match(/<img\b[^>]*>/i) || [])[0] || "";
+    const nearby = source.slice(match.index, Math.min(source.length, match.index + 2200));
+    const closeAnchor = nearby.search(/<\\/a\\s*>/i);
+    const inner = closeAnchor >= 0 ? nearby.slice(match[0].length, closeAnchor) : nearby.slice(match[0].length, 900);
+    const imageTag = (nearby.match(/<img\\b[^>]*>/i) || [])[0] || "";
+    const heading = (inner.match(/<(?:h[1-6]|strong|span)\\b[^>]*>[\\s\\S]*?<\\/(?:h[1-6]|strong|span)>/i) || [])[0] || "";
     const title = decodeHtml(
       readAttribute(attributes, "title") ||
       readAttribute(attributes, "aria-label") ||
       readAttribute(imageTag, "alt") ||
       readAttribute(imageTag, "title") ||
+      heading ||
       inner
     );
-    if (!title || title.length < 2) continue;
+    const hasCardImage = /<img\\b/i.test(nearby.slice(0, 1000));
+    if (!title || title.length < 2 || (!hasCardImage && !readAttribute(attributes, "title") && !readAttribute(attributes, "aria-label"))) continue;
 
+    const normalizedUrl = parsed.origin + pathname + parsed.search;
+    if (seen.has(normalizedUrl)) continue;
     const id = slugFromUrl(pathname);
-    if (!id) continue;
+    if (!id || /^(page|anime|movie|movies|all|latest|popular|completed|ongoing)$/i.test(id)) continue;
+
     seen.add(normalizedUrl);
     results.push({
       id,
       slug: id,
       title,
-      poster: imageFromBlock(block, base),
+      poster: imageFromBlock(nearby.slice(0, Math.min(1200, nearby.length)), base),
       sourceUrl: normalizedUrl
     });
   }
