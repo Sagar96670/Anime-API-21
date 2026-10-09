@@ -115,8 +115,6 @@ function extractAnimeCards(html, base) {
     const pathname = parsed.pathname.replace(/\/+$/, "");
     const lowerPath = pathname.toLowerCase();
     const rawId = slugFromUrl(pathname);
-    // The current source catalog links directly to /watch/<title>-episode-N/
-    // rather than /anime/<title>/. Normalize episode URLs to a series ID.
     const id = lowerPath.startsWith("/watch/")
       ? rawId.replace(/-(?:season-\d+-)?episode-\d+(?:-\d+)?$/i, "").replace(/-(?:season-\d+)-episode-\d+$/i, "")
       : rawId;
@@ -161,6 +159,7 @@ function extractAnimeCards(html, base) {
 
   return results;
 }
+
 function extractSeasonLinks(html, base) {
   const seasons = [];
   const seen = new Set();
@@ -194,7 +193,6 @@ function extractWatchEpisodes(html, anime, season) {
     const episodeMatch =
       hrefValue.match(/(?:episode|ep)[-_]?(\d+)(?:\D|$)/i) ||
       hrefValue.match(/(?:^|[-_/])e(?:pisode)?[-_]?0*(\d+)(?:[-_/]|$)/i);
-
     if (!episodeMatch) continue;
 
     const episode = Number(episodeMatch[1]);
@@ -202,9 +200,7 @@ function extractWatchEpisodes(html, anime, season) {
 
     const url = absoluteUrl(anime.sourceUrl, hrefValue);
     const key = anime.id + "-s" + season + "-e" + episode;
-
     if (!url || seen.has(key)) continue;
-
     seen.add(key);
     episodes.push({
       id: key,
@@ -220,21 +216,6 @@ function extractWatchEpisodes(html, anime, season) {
   return episodes.sort((a, b) => a.episode - b.episode);
 }
 
-function extractSeasonNumbers(html) {
-  const seasons = new Set();
-  const regex = /\bSeason\s*(\d+)\b/gi;
-  let match;
-
-  while ((match = regex.exec(decodeHtml(html)))) {
-    const season = Number(match[1]);
-    if (Number.isInteger(season) && season >= 1 && season <= 100) {
-      seasons.add(season);
-    }
-  }
-
-  return [...seasons].sort((a, b) => a - b);
-}
-
 function extractCatalogPageUrls(html, base) {
   const urls = new Map();
   const regex = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]{0,300}?)<\/a>/gi;
@@ -243,29 +224,21 @@ function extractCatalogPageUrls(html, base) {
   while ((match = regex.exec(html))) {
     const url = absoluteUrl(base, match[1]);
     if (!url) continue;
-
     try {
       const parsed = new URL(url);
       const path = parsed.pathname.replace(/\/+$/, "");
       const pageMatch = path.match(/\/anime\/page\/(\d+)$/i);
       if (!pageMatch) continue;
-
       const page = Number(pageMatch[1]);
       if (!Number.isInteger(page) || page < 2) continue;
-
       urls.set(page, url.replace(/\/+$/, "") + "/");
     } catch {}
   }
 
-  return [...urls.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([, url]) => url);
+  return [...urls.entries()].sort((a, b) => a[0] - b[0]).map(([, url]) => url);
 }
 
 function extractEpisodes(html, anime, season) {
-  // DesiDubAnime currently renders episode items with several different
-  // WordPress/theme layouts. Prefer episode-numbered URLs/text, and do not
-  // require the literal word "Episode" to be present in the anchor text.
   const episodes = [];
   const seen = new Set();
   const regex = /<a[^>]+href=[\"']([^\"']+)[\"'][^>]*>([\s\S]{0,1200}?)<\/a>/gi;
@@ -279,18 +252,14 @@ function extractEpisodes(html, anime, season) {
       anchorText.match(/\bEp(?:isode)?\.?\s*(\d+)\b/i) ||
       hrefValue.match(/(?:episode|ep)[-_/]?(\d+)(?:\D|$)/i) ||
       hrefValue.match(/(?:^|[-_/])e(?:pisode)?[-_]?0*(\d+)(?:[-_/]|$)/i);
-
     if (!episodeMatch) continue;
 
     const episode = Number(episodeMatch[1]);
     if (!Number.isInteger(episode) || episode < 1) continue;
-
     const url = absoluteUrl(anime.sourceUrl, match[1]);
     if (!url || url === anime.sourceUrl) continue;
-
     const key = anime.id + "-s" + season + "-e" + episode;
     if (seen.has(key)) continue;
-
     seen.add(key);
     episodes.push({
       id: key,
@@ -309,12 +278,12 @@ function extractEpisodes(html, anime, season) {
 async function scrapeAnimePage(anime) {
   const html = await fetchText(anime.sourceUrl);
   const seasonLinks = extractSeasonLinks(html, anime.sourceUrl);
-  const seasonNumbers = extractSeasonNumbers(html);
-  const seasons = seasonLinks.length
-    ? seasonLinks
-    : [{ season: 1, url: anime.sourceUrl }];
+  // Only explicit season navigation links are evidence of multiple seasons.
+  // Scanning the entire page text picks up unrelated recommendation titles
+  // and incorrectly assigns the same seasons to almost every anime.
+  const seasons = seasonLinks.length ? seasonLinks : [{ season: 1, url: anime.sourceUrl }];
   const episodes = [];
-  let allSeasonsFetched = seasonLinks.length > 0 || seasonNumbers.length <= 1;
+  let allSeasonsFetched = true;
 
   for (const seasonInfo of seasons) {
     try {
@@ -335,9 +304,7 @@ async function scrapeAnimePage(anime) {
   return {
     anime: {
       ...anime,
-      seasons: seasonLinks.length
-        ? seasons.map((item) => item.season)
-        : (seasonNumbers.length ? seasonNumbers : [1]),
+      seasons: seasons.map((item) => item.season),
       sourceSyncComplete: allSeasonsFetched
     },
     episodes
@@ -349,10 +316,6 @@ async function scrapeDesiDubAnime(baseUrl) {
   const concurrency = Math.min(Math.max(Number(process.env.SYNC_CONCURRENCY) || 4, 1), 8);
   const anime = [];
   const seen = new Set();
-
-  // Crawl the pagination graph exposed by the site instead of using a
-  // hard-coded page limit. If the site adds page 20, 200, or more later,
-  // those pages are discovered automatically on the next sync.
   const pendingPages = new Map([[1, base + "/anime/"]]);
   const queuedUrls = new Set(pendingPages.values());
   const fetchedUrls = new Set();
@@ -360,11 +323,9 @@ async function scrapeDesiDubAnime(baseUrl) {
   while (pendingPages.size) {
     const batch = [...pendingPages.entries()].slice(0, concurrency);
     for (const [page, url] of batch) pendingPages.delete(page);
-
     const results = await Promise.all(batch.map(async ([page, url]) => {
-      try {
-        return { page, url, html: await fetchText(url) };
-      } catch (error) {
+      try { return { page, url, html: await fetchText(url) }; }
+      catch (error) {
         console.error("Skipping catalog page", page, error.message);
         return null;
       }
@@ -372,66 +333,35 @@ async function scrapeDesiDubAnime(baseUrl) {
 
     for (const result of results) {
       if (!result || fetchedUrls.has(result.url)) continue;
-
       fetchedUrls.add(result.url);
-
       for (const item of extractAnimeCards(result.html, base)) {
         if (!seen.has(item.id)) {
           seen.add(item.id);
           anime.push(item);
         }
       }
-
-      // Discover whatever pagination pages the site currently exposes.
-      // This is intentionally recursive/graph-based rather than capped at
-      // page 100, so future pages are picked up automatically.
       const discoveredPages = extractCatalogPageUrls(result.html, base);
       for (const url of discoveredPages) {
         if (queuedUrls.has(url) || fetchedUrls.has(url)) continue;
-
         const match = url.match(/\/anime\/page\/(\d+)\/?$/i);
         if (!match) continue;
-
         const page = Number(match[1]);
         if (!Number.isInteger(page) || page < 2) continue;
-
         queuedUrls.add(url);
         pendingPages.set(page + ":" + url, url);
       }
-
-      const parsedItems = extractAnimeCards(result.html, base);
-      const sameHostPaths = [...result.html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)]
-        .map((match) => absoluteUrl(base, match[1]))
-        .filter((href) => {
-          try { return new URL(href).hostname === new URL(base).hostname; } catch { return false; }
-        })
-        .map((href) => new URL(href).pathname)
-        .filter((path) => path && path !== "/")
-        .filter((path) => /anime|watch|title|series|movie|invincible|goat|shield|tate|slug/i.test(path))
-        .slice(0, 30);
-      const pageTitle = ((result.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "")
-        .replace(/\s+/g, " ").trim().slice(0, 120);
-      console.log(
-        "Catalog page " + result.page +
-        " yielded " + parsedItems.length +
-        " anime and exposed " + discoveredPages.length + " pagination pages." +
-        " HTML bytes=" + Buffer.byteLength(result.html, "utf8") +
-        "; title=" + JSON.stringify(pageTitle) +
-        "; sample paths=" + JSON.stringify(sameHostPaths)
-      );
+      console.log("Catalog page " + result.page + " yielded " + extractAnimeCards(result.html, base).length + " anime and exposed " + discoveredPages.length + " pagination pages.");
     }
   }
 
   const enrichedAnime = [];
   const episodes = [];
-
   for (let i = 0; i < anime.length; i += concurrency) {
     const batch = anime.slice(i, i + concurrency);
     const results = await Promise.all(batch.map((item) => scrapeAnimePage(item).catch((error) => {
       console.error("Skipping anime page:", item.sourceUrl, error.message);
       return null;
     })));
-
     for (const result of results) {
       if (!result) continue;
       enrichedAnime.push(result.anime);
@@ -442,11 +372,7 @@ async function scrapeDesiDubAnime(baseUrl) {
   let movies = [];
   try {
     const movieHtml = await fetchText(base + "/anime-type/movie/");
-    const movieItems = extractAnimeCards(movieHtml, base);
-    movies = movieItems.map((item) => ({
-      ...item,
-      type: "movie"
-    }));
+    movies = extractAnimeCards(movieHtml, base).map((item) => ({ ...item, type: "movie" }));
   } catch (error) {
     console.error("Skipping movie catalog:", error.message);
   }
@@ -455,19 +381,10 @@ async function scrapeDesiDubAnime(baseUrl) {
 }
 
 async function fetchCatalogFromUrl(url) {
-  if (!url || !/^https?:\/\//i.test(url)) {
-    throw new Error("A valid HTTP(S) metadata feed URL is required");
-  }
-
-  if (new URL(url).hostname === new URL(DEFAULT_SITE_URL).hostname) {
-    return scrapeDesiDubAnime(DEFAULT_SITE_URL);
-  }
-
+  if (!url || !/^https?:\/\//i.test(url)) throw new Error("A valid HTTP(S) metadata feed URL is required");
+  if (new URL(url).hostname === new URL(DEFAULT_SITE_URL).hostname) return scrapeDesiDubAnime(DEFAULT_SITE_URL);
   const payload = JSON.parse(await fetchText(url));
-  if (!payload || typeof payload !== "object") {
-    throw new Error("Metadata feed must return a JSON object");
-  }
-
+  if (!payload || typeof payload !== "object") throw new Error("Metadata feed must return a JSON object");
   return {
     anime: Array.isArray(payload.anime) ? payload.anime : [],
     episodes: Array.isArray(payload.episodes) ? payload.episodes : [],
