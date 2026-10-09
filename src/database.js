@@ -2,7 +2,11 @@ const fs = require("fs");
 const path = require("path");
 
 const DB_PATH = path.join(__dirname, "..", "data", "anime-db.json");
-const IS_VERCEL = process.env.VERCEL === "1";
+// Vercel sets VERCEL=1 during both build and runtime. During the build we
+// must write the generated catalogue into data/anime-db.json so it is bundled
+// with the function; only runtime invocations should use in-memory writes.
+const IS_VERCEL_RUNTIME =
+  process.env.VERCEL === "1" && process.env.VERCEL_BUILD_SYNC !== "1";
 
 const EMPTY_DATABASE = {
   version: 2,
@@ -60,7 +64,7 @@ function readLocalDatabase() {
 }
 
 function readDatabase() {
-  if (IS_VERCEL) {
+  if (IS_VERCEL_RUNTIME) {
     // Vercel deployments bundle the JSON file with the serverless function.
     // Runtime writes are intentionally not treated as persistent storage.
     return memoryDatabase
@@ -89,7 +93,7 @@ function writeLocalDatabase(db) {
 function writeDatabase(db) {
   const normalized = normalizeDatabase(db);
 
-  if (IS_VERCEL) {
+  if (IS_VERCEL_RUNTIME) {
     // Keep compatibility with the old API: Vercel can mutate this invocation's
     // memory, but persistent refreshes must happen before deployment.
     memoryDatabase = normalized;
