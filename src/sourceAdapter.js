@@ -166,6 +166,20 @@ function extractSeasonLinks(html, base) {
   const regex = /<a[^>]+href=[\"']([^\"']+)[\"'][^>]*>([\s\S]{0,300}?)<\/a>/gi;
   let match;
 
+  // A season mentioned in a recommendation/sidebar is not evidence that
+  // the current anime has that season. Only accept links whose URL belongs
+  // to the same series as the page being scraped.
+  function seriesSlug(value) {
+    let slug = slugFromUrl(new URL(value, base).pathname).toLowerCase();
+    slug = slug
+      .replace(/-episode-\d+(?:-\d+)?$/i, "")
+      .replace(/-(?:season-)?\d+(?:st|nd|rd|th)?-season$/i, "")
+      .replace(/-season-\d+$/i, "")
+      .replace(/-(?:ova|ona|special)$/i, "");
+    return slug;
+  }
+
+  const currentSeries = seriesSlug(base);
   while ((match = regex.exec(html))) {
     const text = decodeHtml(match[2]);
     const seasonMatch = text.match(/\bSeason\s*(\d+)\b/i);
@@ -174,6 +188,13 @@ function extractSeasonLinks(html, base) {
     const season = Number(seasonMatch[1]);
     const url = absoluteUrl(base, match[1]);
     if (!url || !Number.isInteger(season) || season < 1 || season > 100 || seen.has(season)) continue;
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname !== new URL(base).hostname) continue;
+      if (seriesSlug(url) !== currentSeries) continue;
+    } catch {
+      continue;
+    }
 
     seen.add(season);
     seasons.push({ season, url });
