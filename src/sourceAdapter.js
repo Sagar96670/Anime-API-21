@@ -374,7 +374,7 @@ async function scrapeDesiDubAnime(baseUrl) {
       }
 
       const parsedItems = extractAnimeCards(result.html, base);
-      const sameHostPaths = [...result.html.matchAll(/<a\\b[^>]*href=["']([^"']+)["']/gi)]
+      const sameHostPaths = [...result.html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)]
         .map((match) => absoluteUrl(base, match[1]))
         .filter((href) => {
           try { return new URL(href).hostname === new URL(base).hostname; } catch { return false; }
@@ -382,8 +382,8 @@ async function scrapeDesiDubAnime(baseUrl) {
         .map((href) => new URL(href).pathname)
         .filter((path) => path && path !== "/")
         .slice(0, 12);
-      const pageTitle = ((result.html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i) || [])[1] || "")
-        .replace(/\\s+/g, " ").trim().slice(0, 120);
+      const pageTitle = ((result.html.match(/<title[^>]*>([\s\\S]*?)<\/title>/i) || [])[1] || "")
+        .replace(/\s+/g, " ").trim().slice(0, 120);
       console.log(
         "Catalog page " + result.page +
         " yielded " + parsedItems.length +
