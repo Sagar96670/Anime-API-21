@@ -373,10 +373,24 @@ async function scrapeDesiDubAnime(baseUrl) {
         pendingPages.set(page + ":" + url, url);
       }
 
+      const parsedItems = extractAnimeCards(result.html, base);
+      const sameHostPaths = [...result.html.matchAll(/<a\\b[^>]*href=["']([^"']+)["']/gi)]
+        .map((match) => absoluteUrl(base, match[1]))
+        .filter((href) => {
+          try { return new URL(href).hostname === new URL(base).hostname; } catch { return false; }
+        })
+        .map((href) => new URL(href).pathname)
+        .filter((path) => path && path !== "/")
+        .slice(0, 12);
+      const pageTitle = ((result.html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i) || [])[1] || "")
+        .replace(/\\s+/g, " ").trim().slice(0, 120);
       console.log(
         "Catalog page " + result.page +
-        " yielded " + extractAnimeCards(result.html, base).length +
-        " anime and exposed " + discoveredPages.length + " pagination pages."
+        " yielded " + parsedItems.length +
+        " anime and exposed " + discoveredPages.length + " pagination pages." +
+        " HTML bytes=" + Buffer.byteLength(result.html, "utf8") +
+        "; title=" + JSON.stringify(pageTitle) +
+        "; sample paths=" + JSON.stringify(sameHostPaths)
       );
     }
   }
