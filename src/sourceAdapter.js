@@ -381,7 +381,8 @@ async function scrapeDesiDubAnime(baseUrl) {
         })
         .map((href) => new URL(href).pathname)
         .filter((path) => path && path !== "/")
-        .slice(0, 12);
+        .filter((path) => /anime|watch|title|series|movie|invincible|goat|shield|tate|slug/i.test(path))
+        .slice(0, 30);
       const pageTitle = ((result.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "")
         .replace(/\s+/g, " ").trim().slice(0, 120);
       console.log(
