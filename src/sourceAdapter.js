@@ -90,16 +90,20 @@ function extractAnimeCards(html, base) {
     if (seen.has(normalizedUrl)) continue;
 
     const block = attributes + " " + inner;
-    const attributeValue = (name) => {
-      const found = block.match(new RegExp("\\b" + name + "\\s*=\\s*[\\"']([^\\"']+)[\\"']", "i"));
-      return found ? found[1] : "";
+    const readAttribute = (source, name) => {
+      const regex = /([\\w-]+)\\s*=\\s*(["\'])(.*?)\\2/gi;
+      let attribute;
+      while ((attribute = regex.exec(source))) {
+        if (attribute[1].toLowerCase() === name.toLowerCase()) return attribute[3];
+      }
+      return "";
     };
-    const imageAlt = (inner.match(/<img\b[^>]*\balt\s*=\s*["']([^"']+)["']/i) || [])[1] || "";
+    const imageTag = (inner.match(/<img\\b[^>]*>/i) || [])[0] || "";
     const title = decodeHtml(
-      attributeValue("title") ||
-      attributeValue("aria-label") ||
-      imageAlt ||
-      (inner.match(/<img\b[^>]*\btitle\s*=\s*["']([^"']+)["']/i) || [])[1] ||
+      readAttribute(attributes, "title") ||
+      readAttribute(attributes, "aria-label") ||
+      readAttribute(imageTag, "alt") ||
+      readAttribute(imageTag, "title") ||
       inner
     );
     if (!title || title.length < 2) continue;
