@@ -346,11 +346,16 @@ function extractEpisodes(html, anime, season) {
   while ((match = regex.exec(html))) {
     const anchorText = decodeHtml(match[2]);
     const hrefValue = String(match[1] || "");
-    const episodeMatch =
-      anchorText.match(/\bEpisode\s*(\d+)\b/i) ||
-      anchorText.match(/\bEp(?:isode)?\.?\s*(\d+)\b/i) ||
+    // The watch URL carries the canonical episode number. Some page labels
+    // include arc numbering like "290 Power - Episode 1", where the trailing
+    // label number is not the episode's series-wide number.
+    const urlEpisodeMatch =
       hrefValue.match(/(?:episode|ep)[-_/]?(\d+)(?:\D|$)/i) ||
       hrefValue.match(/(?:^|[-_/])e(?:pisode)?[-_]?0*(\d+)(?:[-_/]|$)/i);
+    const titleEpisodeMatch =
+      anchorText.match(/\bEpisode\s*(\d+)\b/i) ||
+      anchorText.match(/\bEp(?:isode)?\.?\s*(\d+)\b/i);
+    const episodeMatch = urlEpisodeMatch || titleEpisodeMatch;
     if (!episodeMatch) continue;
 
     const episode = Number(episodeMatch[1]);
@@ -397,9 +402,14 @@ async function scrapeAnimePage(anime) {
       const seasonHtml = seasonInfo.url === anime.sourceUrl ? html : await fetchText(seasonInfo.url);
       const extracted = extractEpisodes(seasonHtml, anime, seasonInfo.season);
       const watchEpisodes = extractWatchEpisodes(seasonHtml, anime, seasonInfo.season);
-      const merged = new Map(extracted.map((item) => [item.id, item]));
-      for (const item of watchEpisodes) {
-        merged.set(item.id, { ...(merged.get(item.id) || {}), ...item });
+      const merged = new Map();
+      // Deduplicate by source URL as well as ID so arc labels cannot create
+      // two API records for the same episode page.
+      for (const item of [...extracted, ...watchEpisodes]) {
+        const existing = merged.get(item.sourceUrl);
+        if (!existing || item.id.includes("-e" + item.episode)) {
+          merged.set(item.sourceUrl, { ...(existing || {}), ...item });
+        }
       }
       episodes.push(...merged.values());
     } catch (error) {
