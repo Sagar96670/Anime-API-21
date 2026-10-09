@@ -382,7 +382,7 @@ async function scrapeDesiDubAnime(baseUrl) {
         .map((href) => new URL(href).pathname)
         .filter((path) => path && path !== "/")
         .slice(0, 12);
-      const pageTitle = ((result.html.match(/<title[^>]*>([\s\\S]*?)<\/title>/i) || [])[1] || "")
+      const pageTitle = ((result.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "")
         .replace(/\s+/g, " ").trim().slice(0, 120);
       console.log(
         "Catalog page " + result.page +
