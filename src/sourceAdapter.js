@@ -65,9 +65,9 @@ function extractAnimeCards(html, base) {
   const source = String(html || "");
   // Parse opening anchors independently so nested card markup does not break
   // extraction when the closing anchor is not where a simple regex expects.
-  const anchorRegex = /<a\\b([^>]*)>/gi;
+  const anchorRegex = /<a\b([^>]*)>/gi;
   const readAttribute = (attributes, name) => {
-    const regex = /([\\w-]+)\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))/gi;
+    const regex = /([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
     let attribute;
     while ((attribute = regex.exec(String(attributes || "")))) {
       if (attribute[1].toLowerCase() === name.toLowerCase()) {
@@ -88,21 +88,21 @@ function extractAnimeCards(html, base) {
     try { parsed = new URL(href); } catch { continue; }
     if (parsed.hostname !== new URL(base).hostname) continue;
 
-    const pathname = parsed.pathname.replace(/\\/+$/, "");
+    const pathname = parsed.pathname.replace(/\/+$/, "");
     const lowerPath = pathname.toLowerCase();
     if (
       !pathname ||
       lowerPath === "/anime" ||
-      /\\/page\\/\\d+$/.test(lowerPath) ||
-      /\\/(anime-type|category|tag|author|genre|genres|search|watch|login|register|homepage|schedule|random)(\\/|$)/i.test(lowerPath) ||
-      /\\.(?:jpg|jpeg|png|webp|gif|css|js|xml|pdf)$/i.test(lowerPath)
+      /\/page\/\d+$/.test(lowerPath) ||
+      /\/(anime-type|category|tag|author|genre|genres|search|watch|login|register|homepage|schedule|random)(\/|$)/i.test(lowerPath) ||
+      /\.(?:jpg|jpeg|png|webp|gif|css|js|xml|pdf)$/i.test(lowerPath)
     ) continue;
 
     const nearby = source.slice(match.index, Math.min(source.length, match.index + 2200));
-    const closeAnchor = nearby.search(/<\\/a\\s*>/i);
+    const closeAnchor = nearby.search(/<\/a\s*>/i);
     const inner = closeAnchor >= 0 ? nearby.slice(match[0].length, closeAnchor) : nearby.slice(match[0].length, 900);
-    const imageTag = (nearby.match(/<img\\b[^>]*>/i) || [])[0] || "";
-    const heading = (inner.match(/<(?:h[1-6]|strong|span)\\b[^>]*>[\\s\\S]*?<\\/(?:h[1-6]|strong|span)>/i) || [])[0] || "";
+    const imageTag = (nearby.match(/<img\b[^>]*>/i) || [])[0] || "";
+    const heading = (inner.match(/<(?:h[1-6]|strong|span)\b[^>]*>[\s\S]*?<\/(?:h[1-6]|strong|span)>/i) || [])[0] || "";
     const title = decodeHtml(
       readAttribute(attributes, "title") ||
       readAttribute(attributes, "aria-label") ||
@@ -111,7 +111,7 @@ function extractAnimeCards(html, base) {
       heading ||
       inner
     );
-    const hasCardImage = /<img\\b/i.test(nearby.slice(0, 1000));
+    const hasCardImage = /<img\b/i.test(nearby.slice(0, 1000));
     if (!title || title.length < 2 || (!hasCardImage && !readAttribute(attributes, "title") && !readAttribute(attributes, "aria-label"))) continue;
 
     const normalizedUrl = parsed.origin + pathname + parsed.search;
