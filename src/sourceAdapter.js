@@ -194,6 +194,25 @@ function extractAnimeCards(html, base) {
   return results;
 }
 
+function inferSeasonNumber(anime, sourceUrl) {
+  const candidates = [
+    String(anime && anime.title || ""),
+    String(sourceUrl || ""),
+    String(anime && anime.id || "")
+  ];
+  for (const candidate of candidates) {
+    const value = decodeHtml(candidate).replace(/%c2%bd/ig, "½");
+    const match =
+      value.match(/\b(\d+)(?:st|nd|rd|th)?\s*season\b/i) ||
+      value.match(/\bseason\s*(\d+)\b/i) ||
+      value.match(/[-/](\d+)(?:st|nd|rd|th)?-season(?:[-/?#]|$)/i);
+    if (!match) continue;
+    const season = Number(match[1]);
+    if (Number.isInteger(season) && season >= 1 && season <= 100) return season;
+  }
+  return 1;
+}
+
 function extractSeasonLinks(html, base) {
   const seasons = [];
   const seen = new Set();
@@ -343,7 +362,8 @@ async function scrapeAnimePage(anime) {
   // Only explicit season navigation links are evidence of multiple seasons.
   // Scanning the entire page text picks up unrelated recommendation titles
   // and incorrectly assigns the same seasons to almost every anime.
-  const seasons = seasonLinks.length ? seasonLinks : [{ season: 1, url: anime.sourceUrl }];
+  const fallbackSeason = inferSeasonNumber(anime, anime.sourceUrl);
+  const seasons = seasonLinks.length ? seasonLinks : [{ season: fallbackSeason, url: anime.sourceUrl }];
   const episodes = [];
   let allSeasonsFetched = true;
 
