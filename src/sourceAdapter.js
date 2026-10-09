@@ -63,10 +63,9 @@ function extractAnimeCards(html, base) {
   const results = [];
   const seen = new Set();
   const source = String(html || "");
-  // Parse opening anchors independently so nested card markup does not break
-  // extraction when the closing anchor is not where a simple regex expects.
   const anchorRegex = /<a\b([^>]*)>/gi;
-  const readAttribute = (attributes, name) => {
+
+  function readAttribute(attributes, name) {
     const regex = /([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
     let attribute;
     while ((attribute = regex.exec(String(attributes || "")))) {
@@ -75,9 +74,13 @@ function extractAnimeCards(html, base) {
       }
     }
     return "";
-  };
-  let match;
+  }
 
+  function humanizeSlug(slug) {
+    return decodeHtml(String(slug || "").replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
+  }
+
+  let match;
   while ((match = anchorRegex.exec(source))) {
     const attributes = match[1] || "";
     const hrefValue = readAttribute(attributes, "href");
@@ -90,41 +93,42 @@ function extractAnimeCards(html, base) {
 
     const pathname = parsed.pathname.replace(/\/+$/, "");
     const lowerPath = pathname.toLowerCase();
+    const id = slugFromUrl(pathname);
     if (
       !pathname ||
+      pathname === "/" ||
       lowerPath === "/anime" ||
-      /\/page\/\d+$/.test(lowerPath) ||
-      /\/(anime-type|category|tag|author|genre|genres|search|watch|login|register|homepage|schedule|random)(\/|$)/i.test(lowerPath) ||
-      /\.(?:jpg|jpeg|png|webp|gif|css|js|xml|pdf)$/i.test(lowerPath)
+      /\/(page|anime-type|category|tag|author|genre|genres|search|watch|login|register|homepage|schedule|random|language|languages)(\/|$)/i.test(lowerPath) ||
+      /\.(?:jpg|jpeg|png|webp|gif|css|js|xml|pdf)$/i.test(lowerPath) ||
+      /^(page|anime|movie|movies|all|latest|popular|completed|ongoing|home|login|register|search)$/i.test(id)
     ) continue;
 
-    const nearby = source.slice(match.index, Math.min(source.length, match.index + 2200));
+    const nearby = source.slice(match.index, Math.min(source.length, match.index + 2600));
     const closeAnchor = nearby.search(/<\/a\s*>/i);
     const inner = closeAnchor >= 0 ? nearby.slice(match[0].length, closeAnchor) : nearby.slice(match[0].length, 900);
     const imageTag = (nearby.match(/<img\b[^>]*>/i) || [])[0] || "";
-    const heading = (inner.match(/<(?:h[1-6]|strong|span)\b[^>]*>[\s\S]*?<\/(?:h[1-6]|strong|span)>/i) || [])[0] || "";
+    const heading = (nearby.match(/<(?:h[1-6]|strong)\b[^>]*>[\s\S]*?<\/(?:h[1-6]|strong)>/i) || [])[0] || "";
     const title = decodeHtml(
       readAttribute(attributes, "title") ||
       readAttribute(attributes, "aria-label") ||
       readAttribute(imageTag, "alt") ||
       readAttribute(imageTag, "title") ||
       heading ||
-      inner
+      inner ||
+      humanizeSlug(id)
     );
-    const hasCardImage = /<img\b/i.test(nearby.slice(0, 1000));
-    if (!title || title.length < 2 || (!hasCardImage && !readAttribute(attributes, "title") && !readAttribute(attributes, "aria-label"))) continue;
+    const hasImage = /<img\b/i.test(nearby.slice(0, 1400));
+    const isAnimePath = /\/anime\/[^/]+/i.test(pathname);
+    if ((!hasImage && !isAnimePath) || !id || !title || title.length < 2) continue;
 
     const normalizedUrl = parsed.origin + pathname + parsed.search;
     if (seen.has(normalizedUrl)) continue;
-    const id = slugFromUrl(pathname);
-    if (!id || /^(page|anime|movie|movies|all|latest|popular|completed|ongoing)$/i.test(id)) continue;
-
     seen.add(normalizedUrl);
     results.push({
       id,
       slug: id,
-      title,
-      poster: imageFromBlock(nearby.slice(0, Math.min(1200, nearby.length)), base),
+      title: title.length > 180 ? humanizeSlug(id) : title,
+      poster: imageFromBlock(nearby.slice(0, Math.min(1600, nearby.length)), base),
       sourceUrl: normalizedUrl
     });
   }
