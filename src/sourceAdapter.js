@@ -67,6 +67,32 @@ function decodeHtml(value) {
     .trim();
 }
 
+function extractPageTitle(html) {
+  const source = String(html || "");
+  const candidates = [];
+  const metaRegex = /<meta\b([^>]*)>/gi;
+  let meta;
+  while ((meta = metaRegex.exec(source))) {
+    const attrs = meta[1] || "";
+    const name = (attrs.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i) || [])[1] || "";
+    const content = (attrs.match(/content\s*=\s*["']([^"']+)["']/i) || [])[1] || "";
+    if (/^(og:title|twitter:title)$/i.test(name) && content) candidates.push(decodeHtml(content));
+  }
+  const titleTag = (source.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i) || [])[1];
+  if (titleTag) candidates.push(decodeHtml(titleTag));
+  const h1 = (source.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i) || [])[1];
+  if (h1) candidates.push(decodeHtml(h1));
+
+  for (const candidate of candidates) {
+    const cleaned = candidate
+      .replace(/\s*[|–—-]\s*(?:DesiDubAnime|Desi Dub Anime).*$/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (cleaned.length >= 5 && cleaned.length <= 300) return cleaned;
+  }
+  return "";
+}
+
 function absoluteUrl(base, value) {
   try { return new URL(value, base).href; } catch { return ""; }
 }
@@ -182,10 +208,10 @@ function extractSeasonLinks(html, base) {
   const currentSeries = seriesSlug(base);
   while ((match = regex.exec(html))) {
     const text = decodeHtml(match[2]);
-    const seasonMatch = text.match(/\bSeason\s*(\d+)\b/i);
+    const seasonMatch = text.match(/\b(?:(\d+)(?:st|nd|rd|th)?\s*Season|Season\s*(\d+))\b/i);
     if (!seasonMatch) continue;
 
-    const season = Number(seasonMatch[1]);
+    const season = Number(seasonMatch[1] || seasonMatch[2]);
     const url = absoluteUrl(base, match[1]);
     if (!url || !Number.isInteger(season) || season < 1 || season > 100 || seen.has(season)) continue;
     try {
@@ -298,6 +324,10 @@ function extractEpisodes(html, anime, season) {
 
 async function scrapeAnimePage(anime) {
   const html = await fetchText(anime.sourceUrl);
+  const pageTitle = extractPageTitle(html);
+  if (pageTitle && (!anime.title || anime.title.length > 160 || anime.title === decodeHtml(slugFromUrl(anime.sourceUrl).replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())))) {
+    anime = { ...anime, title: pageTitle };
+  }
   const seasonLinks = extractSeasonLinks(html, anime.sourceUrl);
   // Only explicit season navigation links are evidence of multiple seasons.
   // Scanning the entire page text picks up unrelated recommendation titles
