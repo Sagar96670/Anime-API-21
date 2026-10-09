@@ -62,37 +62,62 @@ function imageFromBlock(block, base) {
 function extractAnimeCards(html, base) {
   const results = [];
   const seen = new Set();
-  const linkRegex = /<a[^>]+href=[\"']([^\"']*\/anime\/[^\"']+)[\"'][^>]*>([\s\S]*?)<\/a>/gi;
+  // Read every anchor first, then inspect its attributes and nearby card markup.
+  // Some source themes put the title only in an image alt attribute rather than
+  // visible anchor text, which made the old parser silently discard all cards.
+  const linkRegex = /<a\b([^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*)>([\s\S]*?)<\/a\s*>/gi;
   let match;
 
-  while ((match = linkRegex.exec(html))) {
-    const href = absoluteUrl(base, match[1]);
+  while ((match = linkRegex.exec(String(html || "")))) {
+    const attributes = match[1] || "";
+    const hrefValue = match[2] || "";
+    const inner = match[3] || "";
+    const href = absoluteUrl(base, hrefValue);
+    if (!href) continue;
+
+    let parsed;
+    try { parsed = new URL(href); } catch { continue; }
+    const pathname = parsed.pathname.replace(/\/+$/, "");
     if (
-      !href ||
-      seen.has(href) ||
-      href === base + "/anime/" ||
-      href.includes("/anime-type/") ||
-      /\/anime\/page\/\d+\/?$/i.test(new URL(href).pathname)
+      !/\/anime\/.+/i.test(pathname) ||
+      /\/anime\/page\/\d+$/i.test(pathname) ||
+      /\/anime-type\//i.test(pathname) ||
+      /\/anime\/?$/i.test(pathname) ||
+      /\/(tag|category|author)\//i.test(pathname)
     ) continue;
 
-    const block = match[0] + match[2];
-    const titleMatch = block.match(/title=[\"']([^\"']+)[\"']/i);
-    const title = decodeHtml(titleMatch ? titleMatch[1] : match[2]);
+    const normalizedUrl = parsed.origin + pathname + parsed.search;
+    if (seen.has(normalizedUrl)) continue;
+
+    const block = attributes + " " + inner;
+    const attributeValue = (name) => {
+      const found = block.match(new RegExp("\\b" + name + "\\s*=\\s*[\\"']([^\\"']+)[\\"']", "i"));
+      return found ? found[1] : "";
+    };
+    const imageAlt = (inner.match(/<img\b[^>]*\balt\s*=\s*["']([^"']+)["']/i) || [])[1] || "";
+    const title = decodeHtml(
+      attributeValue("title") ||
+      attributeValue("aria-label") ||
+      imageAlt ||
+      (inner.match(/<img\b[^>]*\btitle\s*=\s*["']([^"']+)["']/i) || [])[1] ||
+      inner
+    );
     if (!title || title.length < 2) continue;
 
-    seen.add(href);
+    const id = slugFromUrl(pathname);
+    if (!id) continue;
+    seen.add(normalizedUrl);
     results.push({
-      id: slugFromUrl(href),
-      slug: slugFromUrl(href),
+      id,
+      slug: id,
       title,
       poster: imageFromBlock(block, base),
-      sourceUrl: href
+      sourceUrl: normalizedUrl
     });
   }
 
   return results;
 }
-
 function extractSeasonLinks(html, base) {
   const seasons = [];
   const seen = new Set();
