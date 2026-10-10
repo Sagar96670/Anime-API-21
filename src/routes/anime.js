@@ -137,10 +137,10 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
     if (!episode) {
       try {
         const source = new URL(anime.sourceUrl);
-        if (/desidubanime\\.me$/i.test(source.hostname) && /^\\/watch\\//i.test(source.pathname)) {
+        if (/desidubanime\.me$/i.test(source.hostname) && /^\/watch\//i.test(source.pathname)) {
           const seriesSlug = source.pathname.split("/").filter(Boolean).pop()
-            .replace(/-episode-\\d+.*$/i, "")
-            .replace(/-season-\\d+.*$/i, "");
+            .replace(/-episode-\d+.*$/i, "")
+            .replace(/-season-\d+.*$/i, "");
           if (seriesSlug) {
             const fallbackUrl = new URL("/watch/" + seriesSlug + "-episode-" + episodeNumber, source.origin).toString();
             const iframeUrl = await fetchEpisodeIframeSrc(fallbackUrl);
@@ -151,7 +151,7 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
                 season,
                 episode: episodeNumber,
                 title: "Episode " + episodeNumber,
-                hls: /\\.m3u8(?:$|[?#])/i.test(iframeUrl),
+                hls: /\.m3u8(?:$|[?#])/i.test(iframeUrl),
                 stream_url: iframeUrl,
                 video_url: iframeUrl,
                 iframe_url: iframeUrl,
@@ -191,7 +191,7 @@ router.get("/anime/:id/episode/:season/:episode/stream", async (req, res, next) 
       });
     }
 
-    const isHls = /\\.m3u8(?:$|[?#])/i.test(iframeUrl);
+    const isHls = /\.m3u8(?:$|[?#])/i.test(iframeUrl);
     return res.json({
       status: true,
       anime_id: anime.id,
